@@ -1,10 +1,5 @@
 // Voice Recognition System for Hackwarts - Always Listening Magic
 
-interface SpeechRecognitionResult {
-  transcript: string;
-  confidence: number;
-}
-
 interface SpeechRecognitionEvent extends Event {
   results: SpeechRecognitionResultList;
   resultIndex: number;
@@ -266,11 +261,6 @@ export class VoiceRecognition {
 
   private setCooldown(spell: string): void {
     this.spellCooldowns.set(spell, Date.now());
-  }
-
-  private shouldKeepListening(): boolean {
-    // Always keep listening for magic
-    return true;
   }
 
   public async startListening(): Promise<void> {
