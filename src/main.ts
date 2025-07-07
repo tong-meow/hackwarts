@@ -19,7 +19,7 @@ import {
   castSpellOnSpider,
   drawSpider,
   damagePlayer,
-} from "./spider.js";
+} from "./enemies/spider.js";
 
 // Import troll enemy system
 import {
@@ -28,7 +28,7 @@ import {
   updateTrollAI,
   castSpellOnTroll,
   drawTroll,
-} from "./troll.js";
+} from "./enemies/troll.js";
 
 // Import soul sucker enemy system
 import {
@@ -37,7 +37,7 @@ import {
   updateSoulSuckerAI,
   castSpellOnSoulSucker,
   drawSoulSucker,
-} from "./soulsucker.js";
+} from "./enemies/soulsucker.js";
 
 // Store original player data
 const ORIGINAL_PLAYER = {
