@@ -92,7 +92,6 @@ const gameUI = new GameUI(canvas, ctx);
 // Game state
 let gameWon = false;
 let gameOver = false;
-let lastSpellCast = "";
 let spellCastCount = 0;
 
 // Track active spell effects to clear them on reset
@@ -187,7 +186,6 @@ function updatePlayerStatusEffects() {
 // Enhanced spell casting with current enemy
 function castSpell(spellName: string, confidence: number) {
   spellCastCount++;
-  lastSpellCast = spellName;
 
   console.log(
     `✨ Magic activated: ${spellName} (confidence: ${confidence.toFixed(
@@ -300,7 +298,6 @@ function resetGame() {
   // Reset game state
   gameWon = false;
   gameOver = false;
-  lastSpellCast = "";
   spellCastCount = 0;
 
   // Clear UI speech history
