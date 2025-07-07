@@ -307,10 +307,11 @@ export function castSpellOnTroll(
         troll.isRockThrowReflected = true;
         console.log(`🪨 Depulso will reflect the rock back to troll!`);
       } else {
-        damageTroll(troll, 20, activeTimeouts, () => {
+        const damage = Math.floor(20 * powerMultiplier);
+        damageTroll(troll, damage, activeTimeouts, () => {
           console.log("🎉 VICTORY! Troll defeated!");
         });
-        console.log(`🪨 Troll ${troll.id} hit by force for 20 damage!`);
+        console.log(`🪨 Troll ${troll.id} hit by force for ${damage} damage!`);
       }
       break;
   }
