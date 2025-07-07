@@ -9,17 +9,19 @@ export interface SpellInfo {
 export class GameUI {
   private canvas: HTMLCanvasElement;
   private ctx: CanvasRenderingContext2D;
-  private isListening = false;
   private lastSpoken = "";
   private lastRecognizedSpell = "";
   private microphonePermission = false;
   private allSpeechHistory: string[] = []; // Store all speech for debugging
 
   private spells: SpellInfo[] = [
-    { name: "wingardium leviosa", icon: "🪶", description: "Levitate enemy" },
     { name: "expelliarmus", icon: "✨", description: "Disarm & knockback" },
-    { name: "protego", icon: "🛡️", description: "Block attack" },
-    { name: "lumos", icon: "💡", description: "Stun enemy" },
+    { name: "levicorpus", icon: "🪶", description: "Levitate enemy" },
+    { name: "protego", icon: "🛡️", description: "Shield protection" },
+    { name: "glacius", icon: "❄️", description: "Ice damage & freeze" },
+    { name: "incendio", icon: "🔥", description: "Fire damage & burn" },
+    { name: "bombarda", icon: "💥", description: "Explosive damage" },
+    { name: "depulso", icon: "🪨", description: "Force push" },
   ];
 
   constructor(canvas: HTMLCanvasElement, ctx: CanvasRenderingContext2D) {
@@ -45,16 +47,12 @@ export class GameUI {
     // Title
     this.ctx.fillStyle = "#ff6b6b";
     this.ctx.font = "bold 18px Arial";
-    this.ctx.fillText("🎙️ SPEECH RECOGNITION DEBUG", debugX + 10, debugY + 25);
+    this.ctx.fillText("🎙️ ALWAYS-LISTENING MAGIC", debugX + 10, debugY + 25);
 
     // Current listening status
     this.ctx.fillStyle = "#ffffff";
     this.ctx.font = "16px Arial";
-    this.ctx.fillText(
-      `Status: ${this.isListening ? "🎤 LISTENING" : "🔇 NOT LISTENING"}`,
-      debugX + 10,
-      debugY + 50
-    );
+    this.ctx.fillText("Status: 🎤 ALWAYS LISTENING", debugX + 10, debugY + 50);
 
     // Last spoken (most recent)
     if (this.lastSpoken) {
@@ -117,113 +115,60 @@ export class GameUI {
   }
 
   public drawSpellbook() {
-    const spellbookX = 50;
-    const spellbookY = 100;
-    const spellWidth = 180;
-    const spellHeight = 40;
+    // Position at bottom left, smaller size
+    const spellbookX = 20;
+    const spellbookY = this.canvas.height - 180; // Near bottom
+    const spellWidth = 140; // Smaller width
+    const spellHeight = 20; // Smaller height per spell
 
     // Spellbook background
     this.ctx.fillStyle = "rgba(0, 0, 0, 0.7)";
     this.ctx.fillRect(
-      spellbookX - 10,
-      spellbookY - 10,
-      spellWidth + 20,
-      (spellHeight + 10) * this.spells.length + 20
+      spellbookX - 8,
+      spellbookY - 8,
+      spellWidth + 16,
+      (spellHeight + 3) * this.spells.length + 20
     );
 
     // Spellbook border
     this.ctx.strokeStyle = "#4a90e2";
-    this.ctx.lineWidth = 2;
+    this.ctx.lineWidth = 1;
     this.ctx.strokeRect(
-      spellbookX - 10,
-      spellbookY - 10,
-      spellWidth + 20,
-      (spellHeight + 10) * this.spells.length + 20
+      spellbookX - 8,
+      spellbookY - 8,
+      spellWidth + 16,
+      (spellHeight + 3) * this.spells.length + 20
     );
 
-    // Title
+    // Title - smaller
     this.ctx.fillStyle = "#ffffff";
-    this.ctx.font = "bold 16px Arial";
-    this.ctx.fillText("Spellbook", spellbookX, spellbookY - 20);
+    this.ctx.font = "bold 12px Arial";
+    this.ctx.fillText("Spellbook", spellbookX, spellbookY - 12);
 
-    // Draw each spell
+    // Draw each spell - more compact
     this.spells.forEach((spell, index) => {
-      const y = spellbookY + index * (spellHeight + 10);
+      const y = spellbookY + index * (spellHeight + 3);
 
       // Highlight if it's the last recognized spell
       if (spell.name === this.lastRecognizedSpell) {
         this.ctx.fillStyle = "rgba(74, 144, 226, 0.3)";
-        this.ctx.fillRect(spellbookX - 5, y - 5, spellWidth + 10, spellHeight);
+        this.ctx.fillRect(spellbookX - 4, y - 3, spellWidth + 8, spellHeight);
       }
 
-      // Spell icon
-      this.ctx.font = "24px Arial";
-      this.ctx.fillText(spell.icon, spellbookX, y + 20);
+      // Spell icon - smaller
+      this.ctx.font = "14px Arial";
+      this.ctx.fillText(spell.icon, spellbookX, y + 12);
 
-      // Spell name
+      // Spell name - smaller
       this.ctx.fillStyle = "#ffffff";
-      this.ctx.font = "bold 14px Arial";
-      this.ctx.fillText(spell.name.toUpperCase(), spellbookX + 40, y + 15);
+      this.ctx.font = "bold 9px Arial";
+      this.ctx.fillText(spell.name.toUpperCase(), spellbookX + 20, y + 8);
 
-      // Spell description
+      // Spell description - smaller
       this.ctx.fillStyle = "#cccccc";
-      this.ctx.font = "12px Arial";
-      this.ctx.fillText(spell.description, spellbookX + 40, y + 30);
+      this.ctx.font = "8px Arial";
+      this.ctx.fillText(spell.description, spellbookX + 20, y + 16);
     });
-  }
-
-  public drawVoiceStatus() {
-    const statusX = this.canvas.width - 350;
-    const statusY = 100;
-    const statusWidth = 280;
-    const statusHeight = 120;
-
-    // Status background
-    this.ctx.fillStyle = "rgba(0, 0, 0, 0.7)";
-    this.ctx.fillRect(statusX, statusY, statusWidth, statusHeight);
-
-    // Status border
-    this.ctx.strokeStyle = this.isListening ? "#2ecc71" : "#e74c3c";
-    this.ctx.lineWidth = 2;
-    this.ctx.strokeRect(statusX, statusY, statusWidth, statusHeight);
-
-    // Microphone icon and status
-    this.ctx.fillStyle = "#ffffff";
-    this.ctx.font = "bold 16px Arial";
-    this.ctx.fillText("Voice Status", statusX + 10, statusY + 25);
-
-    // Microphone indicator
-    const micIcon = this.isListening ? "🎤" : "🔇";
-    const micColor = this.isListening ? "#2ecc71" : "#e74c3c";
-    this.ctx.font = "20px Arial";
-    this.ctx.fillText(micIcon, statusX + 10, statusY + 50);
-
-    // Status text
-    this.ctx.fillStyle = micColor;
-    this.ctx.font = "14px Arial";
-    const statusText = this.isListening ? "LISTENING..." : "NOT LISTENING";
-    this.ctx.fillText(statusText, statusX + 40, statusY + 50);
-
-    // Last spoken text
-    if (this.lastSpoken) {
-      this.ctx.fillStyle = "#ffffff";
-      this.ctx.font = "12px Arial";
-      this.ctx.fillText("Last heard:", statusX + 10, statusY + 70);
-      this.ctx.fillStyle = "#cccccc";
-      this.ctx.fillText(`"${this.lastSpoken}"`, statusX + 10, statusY + 85);
-    }
-
-    // Last recognized spell
-    if (this.lastRecognizedSpell) {
-      this.ctx.fillStyle = "#2ecc71";
-      this.ctx.font = "bold 12px Arial";
-      this.ctx.fillText("Spell cast:", statusX + 10, statusY + 105);
-      this.ctx.fillText(
-        this.lastRecognizedSpell.toUpperCase(),
-        statusX + 80,
-        statusY + 105
-      );
-    }
   }
 
   public drawInstructions() {
@@ -239,7 +184,7 @@ export class GameUI {
       this.ctx.font = "bold 14px Arial";
       this.ctx.textAlign = "center";
       this.ctx.fillText(
-        "⚠️ Microphone permission required for voice spells - Use buttons above",
+        "⚠️ Microphone permission required for always-listening magic",
         this.canvas.width / 2,
         promptY + 25
       );
@@ -247,11 +192,7 @@ export class GameUI {
     }
   }
 
-  // Update methods
-  public setListening(listening: boolean) {
-    this.isListening = listening;
-  }
-
+  // Update methods - remove setListening since we're always listening
   public setLastSpoken(text: string) {
     this.lastSpoken = text;
     // Add to history

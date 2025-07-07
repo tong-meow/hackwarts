@@ -10,26 +10,18 @@ if (!ctx) {
 import { VoiceRecognition } from "./voiceRecognition.js";
 import { GameUI } from "./gameUI.js";
 
-// Get control buttons
-const startBtn = document.getElementById("startListening") as HTMLButtonElement;
-const stopBtn = document.getElementById("stopListening") as HTMLButtonElement;
-const resetBtn = document.getElementById("resetGame") as HTMLButtonElement;
+// Import spider enemy system
+import {
+  Spider,
+  Player,
+  createSpider,
+  updateSpiderAI,
+  castSpellOnSpider,
+  drawSpider,
+  damagePlayer,
+} from "./spider.js";
 
-// Game character interface
-interface Character {
-  x: number;
-  y: number;
-  width: number;
-  height: number;
-  color: string;
-  maxHealth: number;
-  currentHealth: number;
-  originalX: number;
-  originalY: number;
-  originalColor: string;
-}
-
-// Store original character data
+// Store original player data
 const ORIGINAL_PLAYER = {
   x: 100,
   y: canvas.height / 2 - 75,
@@ -40,18 +32,8 @@ const ORIGINAL_PLAYER = {
   currentHealth: 100,
 };
 
-const ORIGINAL_ENEMY = {
-  x: canvas.width - 160,
-  y: canvas.height / 2 - 75,
-  width: 60,
-  height: 150,
-  color: "#e74c3c",
-  maxHealth: 80,
-  currentHealth: 80,
-};
-
-// Create player character (left side)
-const player: Character = {
+// Create player character
+const player: Player = {
   x: ORIGINAL_PLAYER.x,
   y: ORIGINAL_PLAYER.y,
   width: ORIGINAL_PLAYER.width,
@@ -62,27 +44,30 @@ const player: Character = {
   originalX: ORIGINAL_PLAYER.x,
   originalY: ORIGINAL_PLAYER.y,
   originalColor: ORIGINAL_PLAYER.color,
+  isImmobilized: false,
+  isPoisoned: false,
+  isProtected: false,
+  protectionEndTime: 0,
+  poisonDamage: 0,
+  poisonEndTime: 0,
+  immobilizedEndTime: 0,
+  lastPoisonTick: 0,
 };
 
-// Create enemy character (right side)
-const enemy: Character = {
-  x: ORIGINAL_ENEMY.x,
-  y: ORIGINAL_ENEMY.y,
-  width: ORIGINAL_ENEMY.width,
-  height: ORIGINAL_ENEMY.height,
-  color: ORIGINAL_ENEMY.color,
-  maxHealth: ORIGINAL_ENEMY.maxHealth,
-  currentHealth: ORIGINAL_ENEMY.currentHealth,
-  originalX: ORIGINAL_ENEMY.x,
-  originalY: ORIGINAL_ENEMY.y,
-  originalColor: ORIGINAL_ENEMY.color,
-};
+// Create single spider enemy (easier difficulty)
+let spider: Spider = createSpider(
+  0,
+  canvas.width - 200,
+  canvas.height / 2 - 50
+);
 
 // Initialize voice recognition and UI systems
 const voiceRecognition = new VoiceRecognition();
 const gameUI = new GameUI(canvas, ctx);
 
-// Magic activation tracking
+// Game state
+let gameWon = false;
+let gameOver = false;
 let lastSpellCast = "";
 let spellCastCount = 0;
 
@@ -99,20 +84,117 @@ function createClearableTimeout(
   return timeout;
 }
 
-// Update button states
-function updateButtonStates() {
-  const isListening = voiceRecognition.isCurrentlyListening();
+// Update player status effects
+function updatePlayerStatusEffects() {
+  const now = Date.now();
 
-  startBtn.disabled = isListening;
-  stopBtn.disabled = !isListening;
-
-  if (isListening) {
-    startBtn.textContent = "🎤 Listening...";
-    stopBtn.textContent = "🔇 Stop Listening";
-  } else {
-    startBtn.textContent = "🎤 Start Listening";
-    stopBtn.textContent = "🔇 Not Listening";
+  // Handle poison
+  if (player.isPoisoned) {
+    if (now >= player.poisonEndTime) {
+      player.isPoisoned = false;
+      console.log(`🐍 Poison cured!`);
+    } else {
+      // Apply poison damage once per second
+      if (now >= player.lastPoisonTick + 1000) {
+        damagePlayer(player, player.poisonDamage, activeTimeouts, () => {
+          gameOver = true;
+        });
+        player.lastPoisonTick = now;
+        console.log(`🐍 Poison tick: ${player.poisonDamage} damage dealt`);
+      }
+    }
   }
+
+  // Handle immobilization
+  if (player.isImmobilized && now >= player.immobilizedEndTime) {
+    player.isImmobilized = false;
+    console.log(`🕸️ Player freed from web!`);
+  }
+
+  // Handle protection
+  if (player.isProtected && now >= player.protectionEndTime) {
+    player.isProtected = false;
+    console.log(`🛡️ Protection expired!`);
+  }
+}
+
+// Enhanced spell casting with spider interactions
+function castSpell(spellName: string, confidence: number) {
+  spellCastCount++;
+  lastSpellCast = spellName;
+
+  console.log(
+    `✨ Magic activated: ${spellName} (confidence: ${confidence.toFixed(
+      2
+    )}, cast #${spellCastCount})`
+  );
+
+  // Allow expelliarmus to reset the game when finished
+  if ((gameWon || gameOver) && spellName === "expelliarmus") {
+    console.log("🔄 Expelliarmus cast - resetting game!");
+    resetGame();
+    return;
+  }
+
+  // Don't cast spells if player is immobilized (except protego)
+  if (player.isImmobilized && spellName !== "protego") {
+    console.log("🕸️ Cannot cast spell while immobilized!");
+    return;
+  }
+
+  // Don't cast spells if game is over
+  if (gameWon || gameOver) {
+    console.log("🎉 Game finished! Say 'expelliarmus' to reset.");
+    return;
+  }
+
+  // Apply spell to spider
+  if (spider.state !== "dead") {
+    castSpellOnSpider(spellName, confidence, spider, player, activeTimeouts);
+  }
+
+  // Check for victory after spell (spider state might have changed)
+  if (spider.state === "dead") {
+    gameWon = true;
+    console.log("🎉 VICTORY! Spider defeated!");
+  }
+
+  // Add magical visual effect
+  createMagicalEffect(spellName, confidence);
+}
+
+// Create magical visual effects
+function createMagicalEffect(spellName: string, confidence: number) {
+  const effectDuration = Math.floor(500 * confidence);
+  const originalPlayerColor = player.color;
+
+  // Player glows when casting (different colors for different spells)
+  let glowColor = "#00ff00"; // Default green
+  switch (spellName) {
+    case "incendio":
+      glowColor = "#ff4400"; // Fire orange
+      break;
+    case "protego":
+      glowColor = "#0088ff"; // Shield blue
+      break;
+    case "expelliarmus":
+      glowColor = "#ffff00"; // Disarm yellow
+      break;
+    case "glacius":
+      glowColor = "#00ffff"; // Ice cyan
+      break;
+    case "bombarda":
+      glowColor = "#ff8800"; // Explosion orange
+      break;
+    case "depulso":
+      glowColor = "#8800ff"; // Force purple
+      break;
+  }
+
+  player.color = glowColor;
+  createClearableTimeout(() => {
+    player.color = originalPlayerColor;
+  }, effectDuration);
 }
 
 // Enhanced reset game state
@@ -123,23 +205,28 @@ function resetGame() {
   activeTimeouts.forEach((timeout) => clearTimeout(timeout));
   activeTimeouts = [];
 
-  // Reset player to original state
+  // Reset player
   player.x = ORIGINAL_PLAYER.x;
   player.y = ORIGINAL_PLAYER.y;
   player.width = ORIGINAL_PLAYER.width;
   player.height = ORIGINAL_PLAYER.height;
   player.color = ORIGINAL_PLAYER.color;
   player.currentHealth = ORIGINAL_PLAYER.maxHealth;
+  player.isImmobilized = false;
+  player.isPoisoned = false;
+  player.isProtected = false;
+  player.protectionEndTime = 0;
+  player.poisonDamage = 0;
+  player.poisonEndTime = 0;
+  player.immobilizedEndTime = 0;
+  player.lastPoisonTick = 0;
 
-  // Reset enemy to original state
-  enemy.x = ORIGINAL_ENEMY.x;
-  enemy.y = ORIGINAL_ENEMY.y;
-  enemy.width = ORIGINAL_ENEMY.width;
-  enemy.height = ORIGINAL_ENEMY.height;
-  enemy.color = ORIGINAL_ENEMY.color;
-  enemy.currentHealth = ORIGINAL_ENEMY.maxHealth;
+  // Reset spider
+  spider = createSpider(0, canvas.width - 200, canvas.height / 2 - 50);
 
-  // Reset tracking variables
+  // Reset game state
+  gameWon = false;
+  gameOver = false;
   lastSpellCast = "";
   spellCastCount = 0;
 
@@ -148,59 +235,116 @@ function resetGame() {
   gameUI.setLastRecognizedSpell("");
 
   console.log("✅ Game reset complete!");
-  console.log(
-    `Player reset to: x=${player.x}, y=${player.y}, color=${player.color}, health=${player.currentHealth}`
-  );
-  console.log(
-    `Enemy reset to: x=${enemy.x}, y=${enemy.y}, color=${enemy.color}, health=${enemy.currentHealth}`
-  );
 }
 
-// Control button event listeners
-startBtn.addEventListener("click", async () => {
-  console.log("🎤 Start button clicked");
+// Draw player function
+function drawPlayer() {
+  // Main body
+  ctx!.fillStyle = player.color;
+  ctx!.fillRect(player.x, player.y, player.width, player.height);
 
-  const hasPermission = await voiceRecognition.requestMicrophonePermission();
-  gameUI.setMicrophonePermission(hasPermission);
+  // Simple face
+  ctx!.fillStyle = "#ffffff";
+  ctx!.fillRect(player.x + 15, player.y + 20, 10, 10); // left eye
+  ctx!.fillRect(player.x + 35, player.y + 20, 10, 10); // right eye
+  ctx!.fillRect(player.x + 20, player.y + 40, 20, 5); // mouth
 
-  if (hasPermission) {
-    try {
-      await voiceRecognition.startListening();
-      console.log("🎤 Magic listening started manually");
-    } catch (error) {
-      console.error("Failed to start listening:", error);
-    }
+  // Status effect indicators above player
+  if (player.isImmobilized) {
+    ctx!.fillStyle = "#654321";
+    ctx!.font = "20px Arial";
+    ctx!.fillText("🕸️", player.x + player.width / 2 - 10, player.y - 5);
   }
 
-  updateButtonStates();
-});
+  if (player.isPoisoned) {
+    ctx!.fillStyle = "#800080";
+    ctx!.font = "20px Arial";
+    ctx!.fillText("🐍", player.x + player.width + 5, player.y + 20);
+  }
 
-stopBtn.addEventListener("click", () => {
-  console.log("🔇 Stop button clicked");
-  voiceRecognition.stopListening();
-  updateButtonStates();
-});
+  if (player.isProtected) {
+    ctx!.fillStyle = "#0088ff";
+    ctx!.font = "20px Arial";
+    ctx!.fillText("🛡️", player.x - 25, player.y + 20);
+  }
 
-resetBtn.addEventListener("click", () => {
-  console.log("🔄 Reset button clicked");
-  resetGame();
-});
+  // Status text below player
+  const now = Date.now();
+  let statusTextY = player.y + player.height + 20;
 
-// Draw character function
-function drawCharacter(character: Character) {
-  ctx!.fillStyle = character.color;
-  ctx!.fillRect(character.x, character.y, character.width, character.height);
+  ctx!.textAlign = "center";
 
-  // Add simple face
-  ctx!.fillStyle = "#ffffff";
-  ctx!.fillRect(character.x + 15, character.y + 20, 10, 10); // left eye
-  ctx!.fillRect(character.x + 35, character.y + 20, 10, 10); // right eye
-  ctx!.fillRect(character.x + 20, character.y + 40, 20, 5); // mouth
+  // Show web trap status
+  if (player.isImmobilized) {
+    const timeLeft = Math.max(
+      0,
+      Math.ceil((player.immobilizedEndTime - now) / 1000)
+    );
+    ctx!.fillStyle = "#8B4513";
+    ctx!.font = "12px Arial";
+    ctx!.fillText(
+      `Entangled (${timeLeft}s)`,
+      player.x + player.width / 2,
+      statusTextY
+    );
+    statusTextY += 15;
+  }
+
+  // Show poison countdown
+  if (player.isPoisoned) {
+    const timeLeft = Math.max(
+      0,
+      Math.ceil((player.poisonEndTime - now) / 1000)
+    );
+    const nextTick = Math.max(
+      0,
+      Math.ceil((player.lastPoisonTick + 1000 - now) / 1000)
+    );
+    ctx!.fillStyle = "#8B008B";
+    ctx!.font = "12px Arial";
+    ctx!.fillText(
+      `Poisoned (${timeLeft}s) - Next: ${nextTick}s`,
+      player.x + player.width / 2,
+      statusTextY
+    );
+
+    // Small progress bar for poison countdown
+    const barWidth = 60;
+    const barHeight = 3;
+    const barX = player.x + player.width / 2 - barWidth / 2;
+    const barY = statusTextY + 3;
+    const progress = Math.max(0, (player.lastPoisonTick + 1000 - now) / 1000);
+
+    ctx!.fillStyle = "#333333";
+    ctx!.fillRect(barX, barY, barWidth, barHeight);
+    ctx!.fillStyle = "#FF6600";
+    ctx!.fillRect(barX, barY, barWidth * progress, barHeight);
+
+    statusTextY += 20;
+  }
+
+  // Show protection status
+  if (player.isProtected) {
+    const timeLeft = Math.max(
+      0,
+      Math.ceil((player.protectionEndTime - now) / 1000)
+    );
+    ctx!.fillStyle = "#4169E1";
+    ctx!.font = "12px Arial";
+    ctx!.fillText(
+      `Protected (${timeLeft}s)`,
+      player.x + player.width / 2,
+      statusTextY
+    );
+    statusTextY += 15;
+  }
+
+  ctx!.textAlign = "left";
 }
 
 // Draw health bar function
 function drawHealthBar(
-  character: Character,
+  character: Player | Spider,
   x: number,
   y: number,
   label: string
@@ -213,9 +357,15 @@ function drawHealthBar(
   ctx!.fillStyle = "#333333";
   ctx!.fillRect(x, y, barWidth, barHeight);
 
-  // Health bar
-  ctx!.fillStyle =
-    character.currentHealth > character.maxHealth * 0.3 ? "#2ecc71" : "#e74c3c";
+  // Health bar with color based on health percentage
+  let healthColor = "#2ecc71"; // Green
+  if (healthPercentage <= 0.3) {
+    healthColor = "#e74c3c"; // Red
+  } else if (healthPercentage <= 0.6) {
+    healthColor = "#f39c12"; // Orange
+  }
+
+  ctx!.fillStyle = healthColor;
   ctx!.fillRect(x, y, barWidth * healthPercentage, barHeight);
 
   // Border
@@ -227,6 +377,9 @@ function drawHealthBar(
   ctx!.fillStyle = "#ffffff";
   ctx!.font = "16px Arial";
   ctx!.fillText(label, x, y - 10);
+
+  // Show current/max health with color coding
+  ctx!.fillStyle = character.currentHealth <= 0 ? "#e74c3c" : "#ffffff";
   ctx!.fillText(
     `${character.currentHealth}/${character.maxHealth}`,
     x + barWidth + 10,
@@ -234,76 +387,61 @@ function drawHealthBar(
   );
 }
 
-// Enhanced spell casting with confidence feedback
-function castSpell(spellName: string, confidence: number) {
-  spellCastCount++;
-  lastSpellCast = spellName;
+// Draw game over/victory messages
+function drawGameMessages() {
+  const messageX = canvas.width / 2;
+  const messageY = canvas.height / 2;
 
-  console.log(
-    `✨ Magic activated: ${spellName} (confidence: ${confidence.toFixed(
-      2
-    )}, cast #${spellCastCount})`
-  );
+  if (gameWon) {
+    // Victory background
+    ctx!.fillStyle = "rgba(46, 204, 113, 0.9)";
+    ctx!.fillRect(messageX - 200, messageY - 50, 400, 100);
 
-  // Enhanced spell effects with confidence-based power
-  const powerMultiplier = Math.min(confidence * 1.5, 1.5); // More confident = more powerful
+    // Victory border
+    ctx!.strokeStyle = "#27ae60";
+    ctx!.lineWidth = 3;
+    ctx!.strokeRect(messageX - 200, messageY - 50, 400, 100);
 
-  switch (spellName) {
-    case "wingardium leviosa":
-      // Levitate enemy (power affects duration)
-      const levitateHeight = Math.floor(20 * powerMultiplier);
-      const levitateDuration = Math.floor(1000 * powerMultiplier);
-      enemy.y -= levitateHeight;
-      createClearableTimeout(() => {
-        enemy.y += levitateHeight;
-      }, levitateDuration);
-      break;
-    case "expelliarmus":
-      // Knockback enemy (power affects distance)
-      const knockbackDistance = Math.floor(30 * powerMultiplier);
-      const knockbackDuration = Math.floor(800 * powerMultiplier);
-      enemy.x += knockbackDistance;
-      createClearableTimeout(() => {
-        enemy.x -= knockbackDistance;
-      }, knockbackDuration);
-      break;
-    case "protego":
-      // Shield effect (power affects visual intensity)
-      console.log(
-        `🛡️ Shield activated! (${(confidence * 100).toFixed(0)}% power)`
-      );
-      // TODO: Add shield visual effect
-      break;
-    case "lumos":
-      // Stun enemy (power affects duration and intensity)
-      const originalColor = enemy.color;
-      const stunDuration = Math.floor(1500 * powerMultiplier);
-      const stunIntensity = Math.floor(255 * confidence);
-      enemy.color = `rgb(${stunIntensity}, ${stunIntensity}, 0)`;
-      createClearableTimeout(() => {
-        enemy.color = originalColor;
-      }, stunDuration);
-      break;
+    // Victory text
+    ctx!.fillStyle = "#ffffff";
+    ctx!.font = "bold 32px Arial";
+    ctx!.textAlign = "center";
+    ctx!.fillText("🎉 VICTORY! 🎉", messageX, messageY - 10);
+
+    ctx!.font = "18px Arial";
+    ctx!.fillText(
+      "Spider defeated! Say 'expelliarmus' to start again.",
+      messageX,
+      messageY + 20
+    );
+    ctx!.textAlign = "left";
+  } else if (gameOver) {
+    // Game over background
+    ctx!.fillStyle = "rgba(231, 76, 60, 0.9)";
+    ctx!.fillRect(messageX - 200, messageY - 50, 400, 100);
+
+    // Game over border
+    ctx!.strokeStyle = "#c0392b";
+    ctx!.lineWidth = 3;
+    ctx!.strokeRect(messageX - 200, messageY - 50, 400, 100);
+
+    // Game over text
+    ctx!.fillStyle = "#ffffff";
+    ctx!.font = "bold 32px Arial";
+    ctx!.textAlign = "center";
+    ctx!.fillText("💀 GAME OVER 💀", messageX, messageY - 10);
+
+    ctx!.font = "18px Arial";
+    ctx!.fillText(
+      "You were defeated! Say 'expelliarmus' to try again.",
+      messageX,
+      messageY + 20
+    );
+    ctx!.textAlign = "left";
   }
-
-  // Add magical particle effect (visual feedback)
-  createMagicalEffect(spellName, confidence);
 }
 
-// Create magical visual effects
-function createMagicalEffect(spellName: string, confidence: number) {
-  // Simple visual feedback for now
-  const effectDuration = Math.floor(500 * confidence);
-  const originalPlayerColor = player.color;
-
-  // Player glows when casting
-  player.color = "#00ff00";
-  createClearableTimeout(() => {
-    player.color = originalPlayerColor;
-  }, effectDuration);
-}
-
-// Voice recognition event handlers with confidence tracking
+// Voice recognition event handlers
 voiceRecognition.onSpellRecognized = (spell: string, confidence: number) => {
   gameUI.setLastRecognizedSpell(spell);
   castSpell(spell, confidence);
@@ -322,59 +460,48 @@ voiceRecognition.onSpeechDetected = (
 };
 
 voiceRecognition.onListeningStart = () => {
-  gameUI.setListening(true);
-  console.log("🎤 Magic is now listening for spells...");
-  updateButtonStates();
+  console.log("🎤 Always-listening magic activated!");
 };
 
 voiceRecognition.onListeningStop = () => {
-  gameUI.setListening(false);
-  console.log("🔇 Magic listening paused");
-  updateButtonStates();
+  console.log("🔄 Always-listening magic restarting...");
 };
 
 voiceRecognition.onError = (error: string) => {
   console.error("Voice recognition error:", error);
   if (error.includes("denied")) {
-    // Show permission error in UI
     gameUI.setMicrophonePermission(false);
   }
-  updateButtonStates();
 };
 
-// Auto-start magic listening when microphone is available
-async function initializeMagic() {
-  console.log("🪄 Initializing Hackwarts magic system...");
+// Auto-start always-listening magic when page loads
+async function initializeAlwaysListeningMagic() {
+  console.log("🪄 Initializing always-listening magic system...");
 
   const hasPermission = await voiceRecognition.requestMicrophonePermission();
   gameUI.setMicrophonePermission(hasPermission);
 
   if (hasPermission) {
     console.log(
-      "🎤 Microphone permission granted - starting magic listening..."
+      "🎤 Microphone permission granted - starting always-listening magic..."
     );
     try {
       await voiceRecognition.startListening();
-      console.log("✨ Magic is now active! Speak any spell to cast it.");
+      console.log(
+        "✨ Always-listening magic is now active! Speak any spell to cast it."
+      );
     } catch (error) {
-      console.error("Failed to start magic listening:", error);
+      console.error("Failed to start always-listening magic:", error);
     }
   } else {
     console.log(
-      "❌ Microphone permission denied - use buttons to enable magic"
+      "❌ Microphone permission denied - always-listening magic disabled"
     );
   }
-
-  updateButtonStates();
 }
 
-// Canvas click handler for manual activation
+// Canvas click handler for manual activation (fallback)
 canvas.addEventListener("click", async (event) => {
-  const rect = canvas.getBoundingClientRect();
-  const x = event.clientX - rect.left;
-  const y = event.clientY - rect.top;
-
-  // If not listening, try to start
   if (!voiceRecognition.isCurrentlyListening()) {
     const hasPermission = await voiceRecognition.requestMicrophonePermission();
     gameUI.setMicrophonePermission(hasPermission);
@@ -382,14 +509,12 @@ canvas.addEventListener("click", async (event) => {
     if (hasPermission) {
       try {
         await voiceRecognition.startListening();
-        console.log("🎤 Magic listening activated by click!");
+        console.log("🎤 Always-listening magic activated by click!");
       } catch (error) {
-        console.error("Failed to start magic listening:", error);
+        console.error("Failed to start always-listening magic:", error);
       }
     }
   }
-
-  updateButtonStates();
 });
 
 // Game loop
@@ -397,38 +522,45 @@ function gameLoop() {
   // Clear canvas
   ctx!.clearRect(0, 0, canvas.width, canvas.height);
 
-  // Draw player
-  drawCharacter(player);
+  // Update game state
+  updatePlayerStatusEffects();
+  updateSpiderAI(spider, player, activeTimeouts, gameOver, gameWon);
 
-  // Draw enemy
-  drawCharacter(enemy);
+  // Draw game objects
+  drawPlayer();
+  drawSpider(spider, ctx!);
 
   // Draw health bars
   drawHealthBar(player, 50, 50, "Player");
-  drawHealthBar(enemy, canvas.width - 300, 50, "Enemy");
+
+  // Draw spider health bar only if alive
+  if (spider.state !== "dead") {
+    drawHealthBar(spider, canvas.width - 300, 100, "Spider");
+  }
 
   // Draw UI elements
   gameUI.drawSpellbook();
-  gameUI.drawVoiceStatus();
   gameUI.drawInstructions();
-
-  // Draw debug speech display (for testing)
   gameUI.drawDebugSpeechDisplay();
+
+  // Draw game messages
+  drawGameMessages();
 
   // Continue the game loop
   requestAnimationFrame(gameLoop);
 }
 
 // Start the game
-console.log("🪄 Starting Hackwarts: Always Listening Magic Game...");
-console.log("✨ Spells will activate whenever you speak them with confidence!");
+console.log("🪄 Starting Hackwarts: Always-Listening Spider Battle!");
+console.log("✨ Speak spells to cast them - no buttons needed!");
 console.log(
-  "🎤 Try saying: 'lumos', 'wingardium leviosa', 'expelliarmus', or 'protego'"
+  "🎤 Available spells: expelliarmus, levicorpus, protego, glacius, incendio, bombarda, depulso"
 );
-console.log("🎛️ Use the control buttons to start/stop listening manually");
+console.log("🕷️ Watch out for spider webs and venom!");
+console.log("🔥 Incendio has special effect on spiders!");
 
-// Initialize magic system
-initializeMagic();
+// Initialize always-listening magic system
+initializeAlwaysListeningMagic();
 
 // Start game loop
 gameLoop();

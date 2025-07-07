@@ -21,12 +21,16 @@ declare global {
 export class VoiceRecognition {
   private recognition: any;
   private isListening = false;
-  private shouldAutoRestart = true; // Control auto-restart behavior
+  private lastRestartTime = 0; // Track last restart to prevent rapid cycling
+  private restartDebounceMs = 2000; // Wait 2 seconds between restarts
   private spells: string[] = [
-    "wingardium leviosa",
     "expelliarmus",
+    "levicorpus",
     "protego",
-    "lumos",
+    "glacius",
+    "incendio",
+    "bombarda",
+    "depulso",
   ];
 
   // Magic system configuration
@@ -70,18 +74,29 @@ export class VoiceRecognition {
     // Event listeners
     this.recognition.onstart = () => {
       this.isListening = true;
-      console.log("🎤 Magic is listening for spells...");
+      console.log("🎤 Always-listening magic activated!");
       this.onListeningStart?.();
     };
 
     this.recognition.onend = () => {
       this.isListening = false;
-      console.log("🔇 Magic listening stopped");
+      console.log("🔄 Magic listening restarting...");
       this.onListeningStop?.();
 
-      // Auto-restart for continuous magic (unless manually stopped)
-      if (this.shouldAutoRestart && this.shouldKeepListening()) {
-        setTimeout(() => this.startListening(), 100);
+      // Always auto-restart for continuous magic
+      const now = Date.now();
+      const timeSinceLastRestart = now - this.lastRestartTime;
+
+      if (timeSinceLastRestart >= this.restartDebounceMs) {
+        console.log("🔄 Auto-restarting always-listening magic...");
+        this.lastRestartTime = now;
+        setTimeout(() => this.startListening(), 1000);
+      } else {
+        console.log(
+          `⏳ Debouncing restart (${Math.ceil(
+            (this.restartDebounceMs - timeSinceLastRestart) / 1000
+          )}s remaining)`
+        );
       }
     };
 
@@ -89,12 +104,35 @@ export class VoiceRecognition {
       console.error("Speech recognition error:", event.error);
       this.onError?.(event.error);
 
-      // Auto-restart on certain errors (but respect manual control)
-      if (
-        this.shouldAutoRestart &&
-        (event.error === "no-speech" || event.error === "audio-capture")
-      ) {
-        setTimeout(() => this.startListening(), 1000);
+      // Always auto-restart on errors for continuous magic
+      const now = Date.now();
+      const timeSinceLastRestart = now - this.lastRestartTime;
+
+      if (timeSinceLastRestart >= this.restartDebounceMs) {
+        if (event.error === "no-speech") {
+          console.log("🔄 No speech detected, restarting magic...");
+          this.lastRestartTime = now;
+          setTimeout(() => this.startListening(), 2000);
+        } else if (event.error === "audio-capture") {
+          console.log("🔄 Audio capture error, restarting magic...");
+          this.lastRestartTime = now;
+          setTimeout(() => this.startListening(), 3000);
+        } else if (event.error === "network") {
+          console.log("🔄 Network error, restarting magic...");
+          this.lastRestartTime = now;
+          setTimeout(() => this.startListening(), 5000);
+        } else {
+          // Handle any other errors by restarting
+          console.log(`🔄 Error "${event.error}", restarting magic...`);
+          this.lastRestartTime = now;
+          setTimeout(() => this.startListening(), 3000);
+        }
+      } else {
+        console.log(
+          `⏳ Error restart debounced (${Math.ceil(
+            (this.restartDebounceMs - timeSinceLastRestart) / 1000
+          )}s remaining)`
+        );
       }
     };
 
@@ -157,14 +195,6 @@ export class VoiceRecognition {
 
     // Enhanced fuzzy matching for pronunciation variations
     const fuzzyMatches: { [key: string]: string[] } = {
-      "wingardium leviosa": [
-        "wingardium",
-        "leviosa",
-        "wingardium leviosa",
-        "wing guardium",
-        "levee osa",
-        "wingard leviosa",
-      ],
       expelliarmus: [
         "expelliarmus",
         "expeliarmus",
@@ -173,8 +203,48 @@ export class VoiceRecognition {
         "expelli armus",
         "expel armus",
       ],
+      levicorpus: [
+        "levicorpus",
+        "levi corpus",
+        "levie corpus",
+        "levy corpus",
+        "levicorpus",
+        "levi corpse",
+      ],
       protego: ["protego", "protago", "pro tego", "protect go"],
-      lumos: ["lumos", "lumas", "lummos", "loom oss"],
+      glacius: [
+        "glacius",
+        "glacier",
+        "glacius",
+        "glass us",
+        "glace us",
+        "ice spell",
+      ],
+      incendio: [
+        "incendio",
+        "incendeo",
+        "in send io",
+        "in cendio",
+        "incendia",
+        "incendo",
+        "fire spell",
+      ],
+      bombarda: [
+        "bombarda",
+        "bombardo",
+        "bomb arda",
+        "bombard a",
+        "bomber da",
+        "explosion spell",
+      ],
+      depulso: [
+        "depulso",
+        "depulso",
+        "de pulso",
+        "depulse o",
+        "push spell",
+        "force spell",
+      ],
     };
 
     for (const [spell, alternatives] of Object.entries(fuzzyMatches)) {
@@ -199,8 +269,7 @@ export class VoiceRecognition {
   }
 
   private shouldKeepListening(): boolean {
-    // Add logic to determine if we should keep listening
-    // For now, always keep listening for magic (unless manually controlled)
+    // Always keep listening for magic
     return true;
   }
 
@@ -213,35 +282,14 @@ export class VoiceRecognition {
       return;
     }
 
-    // Enable auto-restart when manually started
-    this.shouldAutoRestart = true;
+    this.lastRestartTime = Date.now(); // Reset restart tracking
 
     try {
       this.recognition.start();
     } catch (error) {
-      console.error("Error starting magic listening:", error);
-      this.onError?.("Failed to start magic listening");
+      console.error("Error starting always-listening magic:", error);
+      this.onError?.("Failed to start always-listening magic");
     }
-  }
-
-  public stopListening(): void {
-    if (this.recognition && this.isListening) {
-      // Disable auto-restart when manually stopped
-      this.shouldAutoRestart = false;
-      this.recognition.stop();
-    }
-  }
-
-  public enableAutoRestart(): void {
-    this.shouldAutoRestart = true;
-  }
-
-  public disableAutoRestart(): void {
-    this.shouldAutoRestart = false;
-  }
-
-  public getAvailableSpells(): string[] {
-    return [...this.spells];
   }
 
   public isCurrentlyListening(): boolean {
@@ -264,7 +312,11 @@ export class VoiceRecognition {
     this.cooldownDuration = Math.max(500, duration);
   }
 
-  // Request microphone permission
+  public getAvailableSpells(): string[] {
+    return [...this.spells];
+  }
+
+  // Request microphone permission and start listening
   public async requestMicrophonePermission(): Promise<boolean> {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
@@ -272,7 +324,9 @@ export class VoiceRecognition {
       return true;
     } catch (error) {
       console.error("Microphone permission denied:", error);
-      this.onError?.("Microphone access denied - magic requires your voice!");
+      this.onError?.(
+        "Microphone access denied - always-listening magic requires your voice!"
+      );
       return false;
     }
   }
