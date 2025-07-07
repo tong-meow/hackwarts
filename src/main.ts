@@ -19,7 +19,7 @@ import {
   castSpellOnSpider,
   drawSpider,
   damagePlayer,
-} from "./spider.js";
+} from "./enemies/spider.js";
 
 // Import troll enemy system
 import {
@@ -28,7 +28,16 @@ import {
   updateTrollAI,
   castSpellOnTroll,
   drawTroll,
-} from "./troll.js";
+} from "./enemies/troll.js";
+
+// Import soul sucker enemy system
+import {
+  SoulSucker,
+  createSoulSucker,
+  updateSoulSuckerAI,
+  castSpellOnSoulSucker,
+  drawSoulSucker,
+} from "./enemies/soulsucker.js";
 
 // Store original player data
 const ORIGINAL_PLAYER = {
@@ -41,8 +50,8 @@ const ORIGINAL_PLAYER = {
   currentHealth: 100,
 };
 
-// Create player character
-const player: Player = {
+// Create player character with silence support
+const player: Player & { isSilenced?: boolean; silenceEndTime?: number } = {
   x: ORIGINAL_PLAYER.x,
   y: ORIGINAL_PLAYER.y,
   width: ORIGINAL_PLAYER.width,
@@ -61,24 +70,38 @@ const player: Player = {
   poisonEndTime: 0,
   immobilizedEndTime: 0,
   lastPoisonTick: 0,
+  isSilenced: false,
+  silenceEndTime: 0,
 };
 
 // Enemy management - sequential battles
 let spider: Spider | null = null;
 let troll: Troll | null = null;
-let currentEnemyType: "spider" | "troll" | "none" = "spider";
+let soulSucker: SoulSucker | null = null;
+let currentEnemyType: "spider" | "troll" | "soulsucker" | "none" = "spider";
 
-// Initialize first enemy (Spider)
+// Initialize current enemy
 function initializeCurrentEnemy() {
   if (currentEnemyType === "spider") {
     spider = createSpider(0, canvas.width - 200, canvas.height / 2 - 50);
     troll = null;
+    soulSucker = null;
   } else if (currentEnemyType === "troll") {
     spider = null;
     troll = createTroll(1, canvas.width - 200, canvas.height / 2 - 50);
+    soulSucker = null;
+  } else if (currentEnemyType === "soulsucker") {
+    spider = null;
+    troll = null;
+    soulSucker = createSoulSucker(
+      2,
+      canvas.width - 200,
+      canvas.height / 2 - 50
+    );
   } else {
     spider = null;
     troll = null;
+    soulSucker = null;
   }
 }
 
@@ -93,6 +116,7 @@ const gameUI = new GameUI(canvas, ctx);
 let gameWon = false;
 let gameOver = false;
 let spellCastCount = 0;
+let lastSpellCast: string | null = null;
 
 // Track active spell effects to clear them on reset
 let activeTimeouts: NodeJS.Timeout[] = [];
@@ -123,7 +147,11 @@ function onEnemyDefeated() {
     currentEnemyType = "troll";
     initializeCurrentEnemy();
   } else if (currentEnemyType === "troll") {
-    console.log("🧌 Troll defeated! All enemies defeated!");
+    console.log("🧌 Troll defeated! Soul Sucker appears!");
+    currentEnemyType = "soulsucker";
+    initializeCurrentEnemy();
+  } else if (currentEnemyType === "soulsucker") {
+    console.log("👻 Soul Sucker defeated! All enemies defeated!");
     currentEnemyType = "none";
     gameWon = true;
   }
@@ -141,11 +169,16 @@ function skipCurrentEnemy() {
     troll!.currentHealth = 0;
     troll!.totalDamageReceived = 100;
     onEnemyDefeated();
+  } else if (isEnemyAlive(soulSucker)) {
+    soulSucker!.state = "dead";
+    soulSucker!.currentHealth = 0;
+    soulSucker!.totalDamageReceived = 150;
+    onEnemyDefeated();
   }
 }
 
 // Helper function to check if enemy is alive
-function isEnemyAlive(enemy: Spider | Troll | null): boolean {
+function isEnemyAlive(enemy: Spider | Troll | SoulSucker | null): boolean {
   return enemy !== null && enemy.state !== "dead";
 }
 
@@ -181,17 +214,30 @@ function updatePlayerStatusEffects() {
     player.isProtected = false;
     console.log(`🛡️ Protection expired!`);
   }
+
+  // Handle silence
+  if (player.isSilenced && now >= player.silenceEndTime!) {
+    player.isSilenced = false;
+    console.log(`🔇 Silence broken! Voice casting enabled!`);
+  }
 }
 
 // Enhanced spell casting with current enemy
 function castSpell(spellName: string, confidence: number) {
   spellCastCount++;
+  lastSpellCast = spellName;
 
   console.log(
     `✨ Magic activated: ${spellName} (confidence: ${confidence.toFixed(
       2
     )}, cast #${spellCastCount})`
   );
+
+  // Check if player is silenced
+  if (player.isSilenced) {
+    console.log("🔇 Cannot cast spell while silenced!");
+    return;
+  }
 
   // Allow expelliarmus to reset the game when finished
   if ((gameWon || gameOver) && spellName === "expelliarmus") {
@@ -225,6 +271,19 @@ function castSpell(spellName: string, confidence: number) {
 
     // Check if troll was defeated
     if (troll!.state === "dead") {
+      onEnemyDefeated();
+    }
+  } else if (isEnemyAlive(soulSucker)) {
+    castSpellOnSoulSucker(
+      spellName,
+      confidence,
+      soulSucker!,
+      player,
+      activeTimeouts
+    );
+
+    // Check if soul sucker was defeated
+    if (soulSucker!.state === "dead") {
       onEnemyDefeated();
     }
   }
@@ -290,6 +349,8 @@ function resetGame() {
   player.poisonEndTime = 0;
   player.immobilizedEndTime = 0;
   player.lastPoisonTick = 0;
+  player.isSilenced = false;
+  player.silenceEndTime = 0;
 
   // Reset to first enemy (Spider)
   currentEnemyType = "spider";
@@ -299,6 +360,7 @@ function resetGame() {
   gameWon = false;
   gameOver = false;
   spellCastCount = 0;
+  lastSpellCast = null;
 
   // Clear UI speech history
   gameUI.setLastSpoken("");
@@ -409,12 +471,28 @@ function drawPlayer() {
     statusTextY += 15;
   }
 
+  // Show silence status
+  if (player.isSilenced) {
+    const timeLeft = Math.max(
+      0,
+      Math.ceil((player.silenceEndTime! - now) / 1000)
+    );
+    ctx!.fillStyle = "#000000"; // Black for silence
+    ctx!.font = "12px Arial";
+    ctx!.fillText(
+      `Silenced (${timeLeft}s)`,
+      player.x + player.width / 2,
+      statusTextY
+    );
+    statusTextY += 15;
+  }
+
   ctx!.textAlign = "left";
 }
 
 // Draw health bar function
 function drawHealthBar(
-  character: Player | Spider | Troll,
+  character: Player | Spider | Troll | SoulSucker,
   x: number,
   y: number,
   label: string
@@ -666,6 +744,17 @@ function gameLoop() {
     updateTrollAI(troll!, player, activeTimeouts, gameOver, gameWon, () => {
       gameOver = true;
     });
+  } else if (isEnemyAlive(soulSucker)) {
+    updateSoulSuckerAI(
+      soulSucker!,
+      player,
+      activeTimeouts,
+      gameOver,
+      gameWon,
+      () => {
+        gameOver = true;
+      }
+    );
   }
 
   // Draw game objects
@@ -676,6 +765,8 @@ function gameLoop() {
     drawSpider(spider!, ctx!);
   } else if (isEnemyAlive(troll)) {
     drawTroll(troll!, ctx!);
+  } else if (isEnemyAlive(soulSucker)) {
+    drawSoulSucker(soulSucker!, ctx!);
   }
 
   // Draw health bars
@@ -686,6 +777,8 @@ function gameLoop() {
     drawHealthBar(spider!, canvas.width - 300, 100, "Spider");
   } else if (isEnemyAlive(troll)) {
     drawHealthBar(troll!, canvas.width - 300, 100, "Troll");
+  } else if (isEnemyAlive(soulSucker)) {
+    drawHealthBar(soulSucker!, canvas.width - 300, 100, "Soul Sucker");
   }
 
   // Draw UI elements
@@ -709,9 +802,15 @@ console.log("✨ Speak spells to cast them - no buttons needed!");
 console.log(
   "🎤 Available spells: expelliarmus, levicorpus, protego, glacius, incendio, bombarda, depulso"
 );
-console.log("🕷️ First: Defeat the Spider, then 🧌 face the Troll!");
+console.log(
+  "🕷️ First: Defeat the Spider, then 🧌 face the Troll, finally 👻 Soul Sucker!"
+);
 console.log("🔥 Incendio burns spider webs and troll armor!");
 console.log("🪨 Use Depulso to reflect troll's rock throw!");
+console.log("⚡ Stun Soul Sucker with Expelliarmus before dealing damage!");
+console.log(
+  "🔇 Beware Soul Sucker's Silence Shriek that disables voice casting!"
+);
 console.log("⏭️ Click Skip button to debug and jump to next enemy!");
 
 // Initialize always-listening magic system
