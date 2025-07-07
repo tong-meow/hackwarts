@@ -1,0 +1,32 @@
+body {
+  margin: 0;
+  padding: 0;
+  background-color: #1a1a1a;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 100vh;
+  overflow: hidden;
+}
+
+.game-container {
+  text-align: center;
+}
+
+h1 {
+  margin-bottom: 20px;
+  color: #4a90e2;
+  font-size: 2.5em;
+  text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.5);
+}
+
+#gameCanvas {
+  border: 3px solid #4a90e2;
+  border-radius: 8px;
+  background-color: #2a2a2a;
+  box-shadow: 0 0 20px rgba(74, 144, 226, 0.3);
+}
+
+#gameCanvas:hover {
+  box-shadow: 0 0 25px rgba(74, 144, 226, 0.5);
+}
