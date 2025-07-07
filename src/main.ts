@@ -21,6 +21,15 @@ import {
   damagePlayer,
 } from "./spider.js";
 
+// Import troll enemy system
+import {
+  Troll,
+  createTroll,
+  updateTrollAI,
+  castSpellOnTroll,
+  drawTroll,
+} from "./troll.js";
+
 // Store original player data
 const ORIGINAL_PLAYER = {
   x: 100,
@@ -54,12 +63,27 @@ const player: Player = {
   lastPoisonTick: 0,
 };
 
-// Create single spider enemy (easier difficulty)
-let spider: Spider = createSpider(
-  0,
-  canvas.width - 200,
-  canvas.height / 2 - 50
-);
+// Enemy management - sequential battles
+let spider: Spider | null = null;
+let troll: Troll | null = null;
+let currentEnemyType: "spider" | "troll" | "none" = "spider";
+
+// Initialize first enemy (Spider)
+function initializeCurrentEnemy() {
+  if (currentEnemyType === "spider") {
+    spider = createSpider(0, canvas.width - 200, canvas.height / 2 - 50);
+    troll = null;
+  } else if (currentEnemyType === "troll") {
+    spider = null;
+    troll = createTroll(1, canvas.width - 200, canvas.height / 2 - 50);
+  } else {
+    spider = null;
+    troll = null;
+  }
+}
+
+// Initialize first enemy
+initializeCurrentEnemy();
 
 // Initialize voice recognition and UI systems
 const voiceRecognition = new VoiceRecognition();
@@ -74,6 +98,15 @@ let spellCastCount = 0;
 // Track active spell effects to clear them on reset
 let activeTimeouts: NodeJS.Timeout[] = [];
 
+// Skip button for debugging
+const skipButton = {
+  x: canvas.width - 120,
+  y: 20,
+  width: 100,
+  height: 40,
+  isHovered: false,
+};
+
 // Helper function to create clearable timeouts
 function createClearableTimeout(
   callback: () => void,
@@ -82,6 +115,39 @@ function createClearableTimeout(
   const timeout = setTimeout(callback, delay);
   activeTimeouts.push(timeout);
   return timeout;
+}
+
+// Handle enemy defeat and progression
+function onEnemyDefeated() {
+  if (currentEnemyType === "spider") {
+    console.log("🕷️ Spider defeated! Troll appears!");
+    currentEnemyType = "troll";
+    initializeCurrentEnemy();
+  } else if (currentEnemyType === "troll") {
+    console.log("🧌 Troll defeated! All enemies defeated!");
+    currentEnemyType = "none";
+    gameWon = true;
+  }
+}
+
+// Skip current enemy (debug function)
+function skipCurrentEnemy() {
+  console.log("⏭️ Skipping current enemy...");
+  if (isEnemyAlive(spider)) {
+    spider!.state = "dead";
+    spider!.currentHealth = 0;
+    onEnemyDefeated();
+  } else if (isEnemyAlive(troll)) {
+    troll!.state = "dead";
+    troll!.currentHealth = 0;
+    troll!.totalDamageReceived = 100;
+    onEnemyDefeated();
+  }
+}
+
+// Helper function to check if enemy is alive
+function isEnemyAlive(enemy: Spider | Troll | null): boolean {
+  return enemy !== null && enemy.state !== "dead";
 }
 
 // Update player status effects
@@ -118,7 +184,7 @@ function updatePlayerStatusEffects() {
   }
 }
 
-// Enhanced spell casting with spider interactions
+// Enhanced spell casting with current enemy
 function castSpell(spellName: string, confidence: number) {
   spellCastCount++;
   lastSpellCast = spellName;
@@ -148,15 +214,21 @@ function castSpell(spellName: string, confidence: number) {
     return;
   }
 
-  // Apply spell to spider
-  if (spider.state !== "dead") {
-    castSpellOnSpider(spellName, confidence, spider, player, activeTimeouts);
-  }
+  // Apply spell to current enemy only
+  if (isEnemyAlive(spider)) {
+    castSpellOnSpider(spellName, confidence, spider!, player, activeTimeouts);
 
-  // Check for victory after spell (spider state might have changed)
-  if (spider.state === "dead") {
-    gameWon = true;
-    console.log("🎉 VICTORY! Spider defeated!");
+    // Check if spider was defeated
+    if (spider!.state === "dead") {
+      onEnemyDefeated();
+    }
+  } else if (isEnemyAlive(troll)) {
+    castSpellOnTroll(spellName, confidence, troll!, player, activeTimeouts);
+
+    // Check if troll was defeated
+    if (troll!.state === "dead") {
+      onEnemyDefeated();
+    }
   }
 
   // Add magical visual effect
@@ -221,8 +293,9 @@ function resetGame() {
   player.immobilizedEndTime = 0;
   player.lastPoisonTick = 0;
 
-  // Reset spider
-  spider = createSpider(0, canvas.width - 200, canvas.height / 2 - 50);
+  // Reset to first enemy (Spider)
+  currentEnemyType = "spider";
+  initializeCurrentEnemy();
 
   // Reset game state
   gameWon = false;
@@ -344,7 +417,7 @@ function drawPlayer() {
 
 // Draw health bar function
 function drawHealthBar(
-  character: Player | Spider,
+  character: Player | Spider | Troll,
   x: number,
   y: number,
   label: string
@@ -387,6 +460,49 @@ function drawHealthBar(
   );
 }
 
+// Draw skip button
+function drawSkipButton() {
+  // Button background
+  ctx!.fillStyle = skipButton.isHovered ? "#ff6666" : "#ff4444";
+  ctx!.fillRect(
+    skipButton.x,
+    skipButton.y,
+    skipButton.width,
+    skipButton.height
+  );
+
+  // Button border
+  ctx!.strokeStyle = "#ffffff";
+  ctx!.lineWidth = 2;
+  ctx!.strokeRect(
+    skipButton.x,
+    skipButton.y,
+    skipButton.width,
+    skipButton.height
+  );
+
+  // Button text
+  ctx!.fillStyle = "#ffffff";
+  ctx!.font = "14px Arial";
+  ctx!.textAlign = "center";
+  ctx!.fillText(
+    "⏭️ Skip",
+    skipButton.x + skipButton.width / 2,
+    skipButton.y + 25
+  );
+  ctx!.textAlign = "left";
+}
+
+// Check if point is inside skip button
+function isPointInSkipButton(x: number, y: number): boolean {
+  return (
+    x >= skipButton.x &&
+    x <= skipButton.x + skipButton.width &&
+    y >= skipButton.y &&
+    y <= skipButton.y + skipButton.height
+  );
+}
+
 // Draw game over/victory messages
 function drawGameMessages() {
   const messageX = canvas.width / 2;
@@ -395,12 +511,12 @@ function drawGameMessages() {
   if (gameWon) {
     // Victory background
     ctx!.fillStyle = "rgba(46, 204, 113, 0.9)";
-    ctx!.fillRect(messageX - 200, messageY - 50, 400, 100);
+    ctx!.fillRect(messageX - 250, messageY - 50, 500, 100);
 
     // Victory border
     ctx!.strokeStyle = "#27ae60";
     ctx!.lineWidth = 3;
-    ctx!.strokeRect(messageX - 200, messageY - 50, 400, 100);
+    ctx!.strokeRect(messageX - 250, messageY - 50, 500, 100);
 
     // Victory text
     ctx!.fillStyle = "#ffffff";
@@ -410,7 +526,7 @@ function drawGameMessages() {
 
     ctx!.font = "18px Arial";
     ctx!.fillText(
-      "Spider defeated! Say 'expelliarmus' to start again.",
+      "All enemies defeated! Say 'expelliarmus' to start again.",
       messageX,
       messageY + 20
     );
@@ -418,12 +534,12 @@ function drawGameMessages() {
   } else if (gameOver) {
     // Game over background
     ctx!.fillStyle = "rgba(231, 76, 60, 0.9)";
-    ctx!.fillRect(messageX - 200, messageY - 50, 400, 100);
+    ctx!.fillRect(messageX - 250, messageY - 50, 500, 100);
 
     // Game over border
     ctx!.strokeStyle = "#c0392b";
     ctx!.lineWidth = 3;
-    ctx!.strokeRect(messageX - 200, messageY - 50, 400, 100);
+    ctx!.strokeRect(messageX - 250, messageY - 50, 500, 100);
 
     // Game over text
     ctx!.fillStyle = "#ffffff";
@@ -500,8 +616,19 @@ async function initializeAlwaysListeningMagic() {
   }
 }
 
-// Canvas click handler for manual activation (fallback)
+// Canvas click handler for skip button and manual activation (fallback)
 canvas.addEventListener("click", async (event) => {
+  const rect = canvas.getBoundingClientRect();
+  const x = event.clientX - rect.left;
+  const y = event.clientY - rect.top;
+
+  // Check if skip button was clicked
+  if (isPointInSkipButton(x, y)) {
+    skipCurrentEnemy();
+    return;
+  }
+
+  // Original click handler for voice activation
   if (!voiceRecognition.isCurrentlyListening()) {
     const hasPermission = await voiceRecognition.requestMicrophonePermission();
     gameUI.setMicrophonePermission(hasPermission);
@@ -517,6 +644,16 @@ canvas.addEventListener("click", async (event) => {
   }
 });
 
+// Canvas mouse move handler for skip button hover
+canvas.addEventListener("mousemove", (event) => {
+  const rect = canvas.getBoundingClientRect();
+  const x = event.clientX - rect.left;
+  const y = event.clientY - rect.top;
+
+  skipButton.isHovered = isPointInSkipButton(x, y);
+  canvas.style.cursor = skipButton.isHovered ? "pointer" : "default";
+});
+
 // Game loop
 function gameLoop() {
   // Clear canvas
@@ -524,18 +661,34 @@ function gameLoop() {
 
   // Update game state
   updatePlayerStatusEffects();
-  updateSpiderAI(spider, player, activeTimeouts, gameOver, gameWon);
+
+  // Update current enemy AI
+  if (isEnemyAlive(spider)) {
+    updateSpiderAI(spider!, player, activeTimeouts, gameOver, gameWon);
+  } else if (isEnemyAlive(troll)) {
+    updateTrollAI(troll!, player, activeTimeouts, gameOver, gameWon, () => {
+      gameOver = true;
+    });
+  }
 
   // Draw game objects
   drawPlayer();
-  drawSpider(spider, ctx!);
+
+  // Draw current enemy
+  if (isEnemyAlive(spider)) {
+    drawSpider(spider!, ctx!);
+  } else if (isEnemyAlive(troll)) {
+    drawTroll(troll!, ctx!);
+  }
 
   // Draw health bars
   drawHealthBar(player, 50, 50, "Player");
 
-  // Draw spider health bar only if alive
-  if (spider.state !== "dead") {
-    drawHealthBar(spider, canvas.width - 300, 100, "Spider");
+  // Draw current enemy health bar
+  if (isEnemyAlive(spider)) {
+    drawHealthBar(spider!, canvas.width - 300, 100, "Spider");
+  } else if (isEnemyAlive(troll)) {
+    drawHealthBar(troll!, canvas.width - 300, 100, "Troll");
   }
 
   // Draw UI elements
@@ -546,18 +699,23 @@ function gameLoop() {
   // Draw game messages
   drawGameMessages();
 
+  // Draw skip button
+  drawSkipButton();
+
   // Continue the game loop
   requestAnimationFrame(gameLoop);
 }
 
 // Start the game
-console.log("🪄 Starting Hackwarts: Always-Listening Spider Battle!");
+console.log("🪄 Starting Hackwarts: Sequential Enemy Battle!");
 console.log("✨ Speak spells to cast them - no buttons needed!");
 console.log(
   "🎤 Available spells: expelliarmus, levicorpus, protego, glacius, incendio, bombarda, depulso"
 );
-console.log("🕷️ Watch out for spider webs and venom!");
-console.log("🔥 Incendio has special effect on spiders!");
+console.log("🕷️ First: Defeat the Spider, then 🧌 face the Troll!");
+console.log("🔥 Incendio burns spider webs and troll armor!");
+console.log("🪨 Use Depulso to reflect troll's rock throw!");
+console.log("⏭️ Click Skip button to debug and jump to next enemy!");
 
 // Initialize always-listening magic system
 initializeAlwaysListeningMagic();
