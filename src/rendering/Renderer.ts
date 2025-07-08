@@ -480,8 +480,6 @@ export class Renderer {
   public drawGameMessages(
     gameWon: boolean,
     gameOver: boolean,
-    currentEnemyType: string,
-    spellCastCount: number,
     lastSpellCast: string | null
   ): void {
     if (gameWon) {

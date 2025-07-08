@@ -312,8 +312,6 @@ export class GameEngine {
     this.renderer.drawGameMessages(
       this.gameState.gameWon,
       this.gameState.gameOver,
-      this.gameState.currentEnemyType,
-      this.spellSystem.getSpellCastCount(),
       this.spellSystem.getLastSpellCast()
     );
   }
