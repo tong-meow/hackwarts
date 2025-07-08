@@ -32,7 +32,7 @@ export interface Spider extends BaseEnemyState {
 
 // Spider creation and management
 export function createSpider(id: number, x: number, y: number): Spider {
-  const baseEnemy = createBaseEnemy(id, x, y, 40, 30, "#8B4513", 40);
+  const baseEnemy = createBaseEnemy(id, x, y, 480, 240, "#8B4513", 40);
   return {
     ...baseEnemy,
     type: "spider",
@@ -290,36 +290,43 @@ export function drawSpider(spider: Spider, ctx: CanvasRenderingContext2D) {
     return;
   }
 
-  // Main body (oval shape approximation)
-  ctx.fillStyle = spider.color;
-  ctx.fillRect(spider.x, spider.y, spider.width, spider.height);
+  // Create spider image if it doesn't exist
+  if (!(window as any).spiderImage) {
+    (window as any).spiderImage = new Image();
+    (window as any).spiderImage.src = "/assets/enemies/spider_normal.svg";
+  }
 
-  // Spider legs (simple lines)
-  ctx.strokeStyle = spider.color;
-  ctx.lineWidth = 2;
+  const spiderImage = (window as any).spiderImage;
 
-  // Left legs
-  ctx.beginPath();
-  ctx.moveTo(spider.x, spider.y + 5);
-  ctx.lineTo(spider.x - 15, spider.y - 5);
-  ctx.moveTo(spider.x, spider.y + 15);
-  ctx.lineTo(spider.x - 15, spider.y + 10);
-  ctx.moveTo(spider.x, spider.y + 25);
-  ctx.lineTo(spider.x - 15, spider.y + 25);
+  // Draw the spider image with proper aspect ratio
+  if (spiderImage.complete) {
+    // Calculate aspect ratio-preserving dimensions
+    const originalAspectRatio = 40 / 30; // Original spider dimensions
+    const targetWidth = spider.width;
+    const targetHeight = spider.height;
 
-  // Right legs
-  ctx.moveTo(spider.x + spider.width, spider.y + 5);
-  ctx.lineTo(spider.x + spider.width + 15, spider.y - 5);
-  ctx.moveTo(spider.x + spider.width, spider.y + 15);
-  ctx.lineTo(spider.x + spider.width + 15, spider.y + 10);
-  ctx.moveTo(spider.x + spider.width, spider.y + 25);
-  ctx.lineTo(spider.x + spider.width + 15, spider.y + 25);
-  ctx.stroke();
+    // Calculate the largest size that fits within the target area while maintaining aspect ratio
+    let drawWidth, drawHeight;
+    if (targetWidth / targetHeight > originalAspectRatio) {
+      // Target is wider than original aspect ratio
+      drawHeight = targetHeight;
+      drawWidth = targetHeight * originalAspectRatio;
+    } else {
+      // Target is taller than original aspect ratio
+      drawWidth = targetWidth;
+      drawHeight = targetWidth / originalAspectRatio;
+    }
 
-  // Eyes
-  ctx.fillStyle = "#ff0000";
-  ctx.fillRect(spider.x + 5, spider.y + 5, 4, 4);
-  ctx.fillRect(spider.x + 12, spider.y + 5, 4, 4);
+    // Center the image within the target area
+    const offsetX = spider.x + (targetWidth - drawWidth) / 2;
+    const offsetY = spider.y + (targetHeight - drawHeight) / 2;
+
+    ctx.drawImage(spiderImage, offsetX, offsetY, drawWidth, drawHeight);
+  } else {
+    // Fallback to original drawing if image not loaded
+    ctx.fillStyle = spider.color;
+    ctx.fillRect(spider.x, spider.y, spider.width, spider.height);
+  }
 
   // Status indicators using base function
   drawStatusIndicators(spider, ctx);

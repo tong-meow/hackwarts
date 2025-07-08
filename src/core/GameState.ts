@@ -77,7 +77,11 @@ export class GameState {
 
   private initializeCurrentEnemy(canvas: HTMLCanvasElement): void {
     if (this.currentEnemyType === "spider") {
-      this.spider = createSpider(0, canvas.width - 200, canvas.height / 2 - 50);
+      this.spider = createSpider(
+        0,
+        canvas.width - 520,
+        canvas.height / 2 - 120
+      );
       this.troll = null;
       this.soulSucker = null;
     } else if (this.currentEnemyType === "troll") {
