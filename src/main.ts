@@ -7,7 +7,7 @@ if (!ctx) {
 }
 
 // Import voice recognition and UI systems
-import { VoiceRecognition } from "./voiceRecognition.js";
+import { EnhancedVoiceRecognition } from "./voiceRecognition/enhancedVoiceRecognition.js";
 import { GameUI } from "./gameUI.js";
 
 // Import spider enemy system
@@ -109,7 +109,12 @@ function initializeCurrentEnemy() {
 initializeCurrentEnemy();
 
 // Initialize voice recognition and UI systems
-const voiceRecognition = new VoiceRecognition();
+const voiceRecognition = new EnhancedVoiceRecognition({
+  confidenceThreshold: 0.5, // Even lower threshold for better recognition
+  cooldownDuration: 1500, // Shorter cooldown (1.5 seconds)
+  restartDebounceMs: 2000, // Restart debouncing
+  enableDebugMode: true, // Show debug info
+});
 const gameUI = new GameUI(canvas, ctx);
 
 // Game state
@@ -118,13 +123,22 @@ let gameOver = false;
 let spellCastCount = 0;
 let lastSpellCast: string | null = null;
 
+// Frame rate control for slower gameplay
+const TARGET_FPS = 30; // Reduced from 60fps to 30fps for slower gameplay
+const FRAME_TIME = 1000 / TARGET_FPS;
+let lastFrameTime = 0;
+
 // Track active spell effects to clear them on reset
 let activeTimeouts: NodeJS.Timeout[] = [];
 
 // Skip button for debugging
 const skipButton = {
-  x: canvas.width - 120,
-  y: 20,
+  get x() {
+    return canvas.width / 2 - 50;
+  }, // Center horizontally
+  get y() {
+    return canvas.height - 60;
+  }, // Bottom with some margin
   width: 100,
   height: 40,
   isHovered: false,
@@ -143,15 +157,12 @@ function createClearableTimeout(
 // Handle enemy defeat and progression
 function onEnemyDefeated() {
   if (currentEnemyType === "spider") {
-    console.log("🕷️ Spider defeated! Troll appears!");
     currentEnemyType = "troll";
     initializeCurrentEnemy();
   } else if (currentEnemyType === "troll") {
-    console.log("🧌 Troll defeated! Soul Sucker appears!");
     currentEnemyType = "soulsucker";
     initializeCurrentEnemy();
   } else if (currentEnemyType === "soulsucker") {
-    console.log("👻 Soul Sucker defeated! All enemies defeated!");
     currentEnemyType = "none";
     gameWon = true;
   }
@@ -159,7 +170,6 @@ function onEnemyDefeated() {
 
 // Skip current enemy (debug function)
 function skipCurrentEnemy() {
-  console.log("⏭️ Skipping current enemy...");
   if (isEnemyAlive(spider)) {
     spider!.state = "dead";
     spider!.currentHealth = 0;
@@ -179,7 +189,11 @@ function skipCurrentEnemy() {
 
 // Helper function to check if enemy is alive
 function isEnemyAlive(enemy: Spider | Troll | SoulSucker | null): boolean {
-  return enemy !== null && enemy.state !== "dead";
+  const alive = enemy !== null && enemy.state !== "dead";
+  if (enemy && enemy.state === "dead") {
+    console.log(`💀 Enemy ${enemy.id} is dead (state: ${enemy.state})`);
+  }
+  return alive;
 }
 
 // Update player status effects
@@ -190,7 +204,6 @@ function updatePlayerStatusEffects() {
   if (player.isPoisoned) {
     if (now >= player.poisonEndTime) {
       player.isPoisoned = false;
-      console.log(`🐍 Poison cured!`);
     } else {
       // Apply poison damage once per second
       if (now >= player.lastPoisonTick + 1000) {
@@ -198,7 +211,6 @@ function updatePlayerStatusEffects() {
           gameOver = true;
         });
         player.lastPoisonTick = now;
-        console.log(`🐍 Poison tick: ${player.poisonDamage} damage dealt`);
       }
     }
   }
@@ -206,19 +218,16 @@ function updatePlayerStatusEffects() {
   // Handle immobilization
   if (player.isImmobilized && now >= player.immobilizedEndTime) {
     player.isImmobilized = false;
-    console.log(`🕸️ Player freed from web!`);
   }
 
   // Handle protection
   if (player.isProtected && now >= player.protectionEndTime) {
     player.isProtected = false;
-    console.log(`🛡️ Protection expired!`);
   }
 
   // Handle silence
   if (player.isSilenced && now >= player.silenceEndTime!) {
     player.isSilenced = false;
-    console.log(`🔇 Silence broken! Voice casting enabled!`);
   }
 }
 
@@ -227,34 +236,24 @@ function castSpell(spellName: string, confidence: number) {
   spellCastCount++;
   lastSpellCast = spellName;
 
-  console.log(
-    `✨ Magic activated: ${spellName} (confidence: ${confidence.toFixed(
-      2
-    )}, cast #${spellCastCount})`
-  );
-
   // Check if player is silenced
   if (player.isSilenced) {
-    console.log("🔇 Cannot cast spell while silenced!");
     return;
   }
 
   // Allow expelliarmus to reset the game when finished
   if ((gameWon || gameOver) && spellName === "expelliarmus") {
-    console.log("🔄 Expelliarmus cast - resetting game!");
     resetGame();
     return;
   }
 
   // Don't cast spells if player is immobilized (except protego)
   if (player.isImmobilized && spellName !== "protego") {
-    console.log("🕸️ Cannot cast spell while immobilized!");
     return;
   }
 
   // Don't cast spells if game is over
   if (gameWon || gameOver) {
-    console.log("🎉 Game finished! Say 'expelliarmus' to reset.");
     return;
   }
 
@@ -328,8 +327,6 @@ function createMagicalEffect(spellName: string, confidence: number) {
 
 // Enhanced reset game state
 function resetGame() {
-  console.log("🔄 Resetting game...");
-
   // Clear all active spell effects first
   activeTimeouts.forEach((timeout) => clearTimeout(timeout));
   activeTimeouts = [];
@@ -365,8 +362,6 @@ function resetGame() {
   // Clear UI speech history
   gameUI.setLastSpoken("");
   gameUI.setLastRecognizedSpell("");
-
-  console.log("✅ Game reset complete!");
 }
 
 // Draw player function
@@ -490,49 +485,86 @@ function drawPlayer() {
   ctx!.textAlign = "left";
 }
 
-// Draw health bar function
-function drawHealthBar(
+// Draw a collage-style, jagged HP bar above the character
+function drawCollageHealthBar(
   character: Player | Spider | Troll | SoulSucker,
   x: number,
   y: number,
-  label: string
+  label: string,
+  align: "left" | "right" = "left",
+  customWidth?: number
 ) {
-  const barWidth = 200;
-  const barHeight = 20;
+  const barWidth = customWidth || 280; // Use custom width or default to 280
+  const barHeight = 32;
   const healthPercentage = character.currentHealth / character.maxHealth;
 
-  // Background bar
-  ctx!.fillStyle = "#333333";
-  ctx!.fillRect(x, y, barWidth, barHeight);
+  // Jagged torn-paper effect: create a path with random vertical offsets
+  const jaggedness = 6;
+  const points = 8;
+  const step = barWidth / (points - 1);
+  const topOffsets = Array.from(
+    { length: points },
+    () => Math.random() * jaggedness - jaggedness / 2
+  );
+  const bottomOffsets = Array.from(
+    { length: points },
+    () => Math.random() * jaggedness - jaggedness / 2
+  );
 
-  // Health bar with color based on health percentage
-  let healthColor = "#2ecc71"; // Green
-  if (healthPercentage <= 0.3) {
-    healthColor = "#e74c3c"; // Red
-  } else if (healthPercentage <= 0.6) {
-    healthColor = "#f39c12"; // Orange
+  ctx!.save();
+  ctx!.beginPath();
+  // Top edge
+  for (let i = 0; i < points; i++) {
+    const px = x + i * step;
+    const py = y + topOffsets[i];
+    if (i === 0) ctx!.moveTo(px, py);
+    else ctx!.lineTo(px, py);
   }
+  // Right edge
+  ctx!.lineTo(x + barWidth, y + barHeight + bottomOffsets[points - 1]);
+  // Bottom edge (jagged)
+  for (let i = points - 1; i >= 0; i--) {
+    const px = x + i * step;
+    const py = y + barHeight + bottomOffsets[i];
+    ctx!.lineTo(px, py);
+  }
+  // Left edge
+  ctx!.closePath();
 
-  ctx!.fillStyle = healthColor;
-  ctx!.fillRect(x, y, barWidth * healthPercentage, barHeight);
+  // Paper shadow
+  ctx!.shadowColor = "rgba(0,0,0,0.15)";
+  ctx!.shadowBlur = 8;
+  ctx!.fillStyle = "#fdf6e3"; // Paper color
+  ctx!.fill();
+  ctx!.shadowBlur = 0;
 
-  // Border
-  ctx!.strokeStyle = "#ffffff";
-  ctx!.lineWidth = 2;
-  ctx!.strokeRect(x, y, barWidth, barHeight);
+  // HP fill (clip to jagged path)
+  ctx!.save();
+  ctx!.clip();
+  ctx!.fillStyle = healthPercentage > 0.3 ? "#e74c3c" : "#b71c1c";
+  ctx!.fillRect(x, y, barWidth * healthPercentage, barHeight + jaggedness);
+  ctx!.restore();
+
+  // White torn-paper border
+  ctx!.lineWidth = 3;
+  ctx!.strokeStyle = "#fff";
+  ctx!.stroke();
 
   // Label and health text
-  ctx!.fillStyle = "#ffffff";
-  ctx!.font = "16px Arial";
-  ctx!.fillText(label, x, y - 10);
+  ctx!.fillStyle = "#333";
+  ctx!.font = "bold 18px Arial";
+  ctx!.textAlign = align === "left" ? "left" : "right";
+  ctx!.fillText(label, align === "left" ? x : x + barWidth, y - 10);
 
-  // Show current/max health with color coding
-  ctx!.fillStyle = character.currentHealth <= 0 ? "#e74c3c" : "#ffffff";
+  ctx!.font = "16px Arial";
+  ctx!.fillStyle = "#444";
+  ctx!.textAlign = "center";
   ctx!.fillText(
     `${character.currentHealth}/${character.maxHealth}`,
-    x + barWidth + 10,
-    y + 15
+    x + barWidth / 2,
+    y + barHeight / 2 + 7
   );
+  ctx!.restore();
 }
 
 // Draw skip button
@@ -632,6 +664,30 @@ function drawGameMessages() {
   }
 }
 
+// Draw spider decoration when spider is active
+function drawSpiderDecoration() {
+  if (!spiderOverlay) return;
+
+  // Only show spider decoration when spider enemy is active
+  if (currentEnemyType === "spider" && isEnemyAlive(spider)) {
+    // Show spider decoration overlay and start animation
+    spiderOverlay.style.display = "block";
+    if (!spiderOverlayAnimation) {
+      // Start animation loop - move every 1.5 seconds
+      spiderOverlayAnimation = setInterval(animateSpiderOverlay, 1500);
+      // Initial animation
+      animateSpiderOverlay();
+    }
+  } else {
+    // Hide spider decoration overlay and stop animation
+    spiderOverlay.style.display = "none";
+    if (spiderOverlayAnimation) {
+      clearInterval(spiderOverlayAnimation);
+      spiderOverlayAnimation = null;
+    }
+  }
+}
+
 // Voice recognition event handlers
 voiceRecognition.onSpellRecognized = (spell: string, confidence: number) => {
   gameUI.setLastRecognizedSpell(spell);
@@ -643,20 +699,11 @@ voiceRecognition.onSpeechDetected = (
   confidence: number
 ) => {
   gameUI.setLastSpoken(transcript);
-  console.log(
-    `🎙️ All speech detected: "${transcript}" (confidence: ${confidence.toFixed(
-      2
-    )})`
-  );
 };
 
-voiceRecognition.onListeningStart = () => {
-  console.log("🎤 Always-listening magic activated!");
-};
+voiceRecognition.onListeningStart = () => {};
 
-voiceRecognition.onListeningStop = () => {
-  console.log("🔄 Always-listening magic restarting...");
-};
+voiceRecognition.onListeningStop = () => {};
 
 voiceRecognition.onError = (error: string) => {
   console.error("Voice recognition error:", error);
@@ -667,53 +714,97 @@ voiceRecognition.onError = (error: string) => {
 
 // Auto-start always-listening magic when page loads
 async function initializeAlwaysListeningMagic() {
-  console.log("🪄 Initializing always-listening magic system...");
-
   const hasPermission = await voiceRecognition.requestMicrophonePermission();
   gameUI.setMicrophonePermission(hasPermission);
 
   if (hasPermission) {
-    console.log(
-      "🎤 Microphone permission granted - starting always-listening magic..."
-    );
     try {
       await voiceRecognition.startListening();
-      console.log(
-        "✨ Always-listening magic is now active! Speak any spell to cast it."
-      );
     } catch (error) {
       console.error("Failed to start always-listening magic:", error);
     }
-  } else {
-    console.log(
-      "❌ Microphone permission denied - always-listening magic disabled"
-    );
   }
 }
+
+// Initialize always-listening magic system
+initializeAlwaysListeningMagic();
+
+// Load spider decoration
+let spiderDecorationImage: HTMLImageElement | null = null;
+let spiderDecorationLoaded = false;
+let spiderOverlay: HTMLDivElement | null = null;
+let spiderOverlayAnimation: NodeJS.Timeout | null = null;
+
+function loadSpiderDecoration() {
+  if (spiderDecorationImage) return; // Already loaded
+
+  spiderDecorationImage = new Image();
+  spiderDecorationImage.onload = () => {
+    spiderDecorationLoaded = true;
+    console.log("🕷️ Spider decoration loaded!");
+  };
+  spiderDecorationImage.onerror = () => {
+    console.error("❌ Failed to load spider decoration");
+  };
+  spiderDecorationImage.src = "assets/background/spider_decor.svg";
+
+  // Create overlay element
+  spiderOverlay = document.createElement("div");
+  spiderOverlay.style.position = "fixed";
+  spiderOverlay.style.top = "0";
+  spiderOverlay.style.left = "0";
+  spiderOverlay.style.width = "100%";
+  spiderOverlay.style.height = "100%";
+  spiderOverlay.style.backgroundImage =
+    "url('assets/background/spider_decor.svg')";
+  spiderOverlay.style.backgroundSize = "cover";
+  spiderOverlay.style.backgroundPosition = "center";
+  spiderOverlay.style.pointerEvents = "none"; // Don't interfere with clicks
+  spiderOverlay.style.zIndex = "-1"; // Behind background, below canvas
+  spiderOverlay.style.display = "none"; // Hidden by default
+  spiderOverlay.style.transition = "transform 0.5s ease-in-out"; // Smooth movement
+  document.body.appendChild(spiderOverlay);
+}
+
+// Animate spider overlay with subtle movement
+function animateSpiderOverlay() {
+  if (!spiderOverlay || spiderOverlay.style.display === "none") return;
+
+  // Generate random offsets for subtle movement
+  const offsetX = (Math.random() - 0.5) * 20; // -10 to +10 pixels
+  const offsetY = (Math.random() - 0.5) * 15; // -7.5 to +7.5 pixels
+  const rotation = (Math.random() - 0.5) * 2; // -1 to +1 degrees
+
+  spiderOverlay.style.transform = `translate(${offsetX}px, ${offsetY}px) rotate(${rotation}deg)`;
+}
+
+loadSpiderDecoration();
 
 // Canvas click handler for skip button and manual activation (fallback)
 canvas.addEventListener("click", async (event) => {
   const rect = canvas.getBoundingClientRect();
-  const x = event.clientX - rect.left;
-  const y = event.clientY - rect.top;
+  const scaleX = canvas.width / rect.width;
+  const scaleY = canvas.height / rect.height;
+  const x = (event.clientX - rect.left) * scaleX;
+  const y = (event.clientY - rect.top) * scaleY;
 
   // Check if skip button was clicked
   if (isPointInSkipButton(x, y)) {
     skipCurrentEnemy();
     return;
-  }
+  } else {
+    // Original click handler for voice activation
+    if (!voiceRecognition.isCurrentlyListening()) {
+      const hasPermission =
+        await voiceRecognition.requestMicrophonePermission();
+      gameUI.setMicrophonePermission(hasPermission);
 
-  // Original click handler for voice activation
-  if (!voiceRecognition.isCurrentlyListening()) {
-    const hasPermission = await voiceRecognition.requestMicrophonePermission();
-    gameUI.setMicrophonePermission(hasPermission);
-
-    if (hasPermission) {
-      try {
-        await voiceRecognition.startListening();
-        console.log("🎤 Always-listening magic activated by click!");
-      } catch (error) {
-        console.error("Failed to start always-listening magic:", error);
+      if (hasPermission) {
+        try {
+          await voiceRecognition.startListening();
+        } catch (error) {
+          console.error("Failed to start always-listening magic:", error);
+        }
       }
     }
   }
@@ -722,16 +813,25 @@ canvas.addEventListener("click", async (event) => {
 // Canvas mouse move handler for skip button hover
 canvas.addEventListener("mousemove", (event) => {
   const rect = canvas.getBoundingClientRect();
-  const x = event.clientX - rect.left;
-  const y = event.clientY - rect.top;
+  const scaleX = canvas.width / rect.width;
+  const scaleY = canvas.height / rect.height;
+  const x = (event.clientX - rect.left) * scaleX;
+  const y = (event.clientY - rect.top) * scaleY;
 
   skipButton.isHovered = isPointInSkipButton(x, y);
   canvas.style.cursor = skipButton.isHovered ? "pointer" : "default";
 });
 
 // Game loop
-function gameLoop() {
-  // Clear canvas
+function gameLoop(currentTime: number) {
+  // Frame rate limiting for slower gameplay
+  if (currentTime - lastFrameTime < FRAME_TIME) {
+    requestAnimationFrame(gameLoop);
+    return;
+  }
+  lastFrameTime = currentTime;
+
+  // Clear canvas with transparency
   ctx!.clearRect(0, 0, canvas.width, canvas.height);
 
   // Update game state
@@ -757,6 +857,18 @@ function gameLoop() {
     );
   }
 
+  // Check for automatic enemy progression
+  if (currentEnemyType === "spider" && !isEnemyAlive(spider)) {
+    console.log("🕷️ Spider defeated, progressing to troll");
+    onEnemyDefeated();
+  } else if (currentEnemyType === "troll" && !isEnemyAlive(troll)) {
+    console.log("🪨 Troll defeated, progressing to soul sucker");
+    onEnemyDefeated();
+  } else if (currentEnemyType === "soulsucker" && !isEnemyAlive(soulSucker)) {
+    console.log("👻 Soul Sucker defeated, game won!");
+    onEnemyDefeated();
+  }
+
   // Draw game objects
   drawPlayer();
 
@@ -769,16 +881,36 @@ function gameLoop() {
     drawSoulSucker(soulSucker!, ctx!);
   }
 
-  // Draw health bars
-  drawHealthBar(player, 50, 50, "Player");
+  // Update spider decoration based on current enemy
+  drawSpiderDecoration();
 
-  // Draw current enemy health bar
+  // Draw health bars
+  // Player HP bar (top left) - 280px width
+  drawCollageHealthBar(player, 40, 30, "Player", "left", 280);
+  // Enemy HP bar (top right) - proportional to max health
   if (isEnemyAlive(spider)) {
-    drawHealthBar(spider!, canvas.width - 300, 100, "Spider");
+    // Spider: 40 HP = 280px bar (same as player)
+    drawCollageHealthBar(
+      spider!,
+      canvas.width - 320,
+      30,
+      "Spider",
+      "right",
+      280
+    );
   } else if (isEnemyAlive(troll)) {
-    drawHealthBar(troll!, canvas.width - 300, 100, "Troll");
+    // Troll: 100 HP = 400px bar (longer for more HP)
+    drawCollageHealthBar(troll!, canvas.width - 440, 30, "Troll", "right", 400);
   } else if (isEnemyAlive(soulSucker)) {
-    drawHealthBar(soulSucker!, canvas.width - 300, 100, "Soul Sucker");
+    // Soul Sucker: 150 HP = 500px bar (longest for most HP)
+    drawCollageHealthBar(
+      soulSucker!,
+      canvas.width - 560,
+      30,
+      "Soul Sucker",
+      "right",
+      500
+    );
   }
 
   // Draw UI elements
@@ -797,24 +929,4 @@ function gameLoop() {
 }
 
 // Start the game
-console.log("🪄 Starting Hackwarts: Sequential Enemy Battle!");
-console.log("✨ Speak spells to cast them - no buttons needed!");
-console.log(
-  "🎤 Available spells: expelliarmus, levicorpus, protego, glacius, incendio, bombarda, depulso"
-);
-console.log(
-  "🕷️ First: Defeat the Spider, then 🧌 face the Troll, finally 👻 Soul Sucker!"
-);
-console.log("🔥 Incendio burns spider webs and troll armor!");
-console.log("🪨 Use Depulso to reflect troll's rock throw!");
-console.log("⚡ Stun Soul Sucker with Expelliarmus before dealing damage!");
-console.log(
-  "🔇 Beware Soul Sucker's Silence Shriek that disables voice casting!"
-);
-console.log("⏭️ Click Skip button to debug and jump to next enemy!");
-
-// Initialize always-listening magic system
-initializeAlwaysListeningMagic();
-
-// Start game loop
-gameLoop();
+gameLoop(0); // Pass a dummy value for currentTime

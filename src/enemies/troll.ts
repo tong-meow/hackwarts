@@ -74,13 +74,13 @@ export function damageTroll(
   troll.currentHealth = Math.max(0, troll.currentHealth - damage);
 
   console.log(
-    `💥 Troll ${troll.id} takes ${damage} damage! Health: ${troll.currentHealth}/${troll.maxHealth} (Total damage: ${troll.totalDamageReceived}/100)`
+    `🪨 Troll ${troll.id} took ${damage} damage. Health: ${troll.currentHealth}/${troll.maxHealth}, Total damage: ${troll.totalDamageReceived}`
   );
 
-  // Defeat condition: 100 HP total damage
-  if (troll.totalDamageReceived >= 100) {
+  // Defeat condition: 100 HP total damage OR current health reaches 0
+  if (troll.totalDamageReceived >= 100 || troll.currentHealth <= 0) {
+    console.log(`💀 Troll ${troll.id} DEFEATED! State: ${troll.state} -> dead`);
     troll.state = "dead";
-    console.log(`💀 Troll ${troll.id} defeated by total damage!`);
     onVictory();
   }
 
@@ -111,18 +111,15 @@ export function updateTrollAI(
   // Handle status effects
   if (troll.state === "stunned" && now >= troll.stunEndTime) {
     troll.state = "idle";
-    console.log(`Troll ${troll.id} recovered from stun`);
   }
 
   if (troll.state === "levitating" && now >= troll.levitateEndTime) {
     troll.state = "idle";
-    console.log(`Troll ${troll.id} landed from levitation`);
   }
 
   // Handle chunk armor duration
   if (troll.hasChunkArmor && now >= troll.chunkArmorEndTime) {
     troll.hasChunkArmor = false;
-    console.log(`🛡️ Troll ${troll.id} chunk armor expired`);
   }
 
   // Handle skill casting
@@ -157,13 +154,10 @@ function castTrollSkill(troll: Troll, skill: string) {
 
   if (skill === "rockthrow") {
     troll.skillCastDuration = 4000; // 4 seconds
-    console.log(`🪨 Troll ${troll.id} casting Rock Throw...`);
   } else if (skill === "chunkarmor") {
     troll.skillCastDuration = 1000; // 1 second
-    console.log(`🛡️ Troll ${troll.id} casting Chunk Armor...`);
   } else if (skill === "stomp") {
     troll.skillCastDuration = 5000; // 5 seconds
-    console.log(`🦶 Troll ${troll.id} casting Stomp...`);
   }
 }
 
@@ -174,7 +168,6 @@ function executeTrollSkill(
   onGameOver: () => void
 ) {
   if (troll.currentSkill === "rockthrow") {
-    console.log(`🪨 Troll ${troll.id} throws rock!`);
     if (!troll.isRockThrowReflected) {
       // Normal rock throw damage
       if (player.isProtected) {
@@ -191,15 +184,12 @@ function executeTrollSkill(
       console.log(`🪨 Reflected rock hit troll for 30 damage!`);
     }
   } else if (troll.currentSkill === "chunkarmor") {
-    console.log(`🛡️ Troll ${troll.id} activates Chunk Armor!`);
     troll.hasChunkArmor = true;
     troll.chunkArmorEndTime = Date.now() + 15000; // 15 seconds duration
   } else if (troll.currentSkill === "stomp") {
-    console.log(`🦶 Troll ${troll.id} stomps the ground!`);
     let damage = 40;
     if (player.isProtected) {
       damage = 20; // Reduced but not fully blocked
-      console.log(`🛡️ Protego reduces stomp damage to 20!`);
     }
     damagePlayer(player, damage, activeTimeouts, onGameOver);
     console.log(`🦶 Stomp shockwave hits player for ${damage} damage!`);

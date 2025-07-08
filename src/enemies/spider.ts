@@ -130,13 +130,9 @@ export function damageSpider(
   onVictory: () => void
 ) {
   spider.currentHealth = Math.max(0, spider.currentHealth - damage);
-  console.log(
-    `💥 Spider ${spider.id} takes ${damage} damage! Health: ${spider.currentHealth}/${spider.maxHealth}`
-  );
 
   if (spider.currentHealth <= 0) {
     spider.state = "dead";
-    console.log(`💀 Spider ${spider.id} defeated!`);
     onVictory();
   }
 
@@ -158,18 +154,13 @@ export function damagePlayer(
   onGameOver: () => void
 ) {
   if (player.isProtected) {
-    console.log(`🛡️ Player protected! Damage blocked.`);
     return;
   }
 
   player.currentHealth = Math.max(0, player.currentHealth - damage);
-  console.log(
-    `💥 Player takes ${damage} damage! Health: ${player.currentHealth}/${player.maxHealth}`
-  );
 
   if (player.currentHealth <= 0) {
     onGameOver();
-    console.log("💀 GAME OVER! Player defeated!");
   }
 
   // Visual damage feedback
@@ -198,26 +189,22 @@ export function updateSpiderAI(
   // Handle status effects
   if (spider.state === "stunned" && now >= spider.stunEndTime) {
     spider.state = "idle";
-    console.log(`Spider ${spider.id} recovered from stun`);
   }
 
   if (spider.state === "levitating" && now >= spider.levitateEndTime) {
     spider.state = "idle";
-    console.log(`Spider ${spider.id} landed from levitation`);
   }
 
   // Handle fire damage
   if (spider.isOnFire) {
     if (now >= spider.fireEndTime) {
       spider.isOnFire = false;
-      console.log(`🔥 Spider ${spider.id} fire extinguished`);
 
       // Death after fire (special incendio effect)
       if (spider.currentHealth > 0) {
         const timeout = setTimeout(() => {
           spider.state = "dead";
           spider.currentHealth = 0;
-          console.log(`💀 Spider ${spider.id} died from fire!`);
         }, 2000);
         activeTimeouts.push(timeout);
       }
@@ -241,22 +228,13 @@ export function updateSpiderAI(
         if (spider.lastWebHit) {
           // Web hit - cast venom after 1 second delay (less intense timing)
           spider.nextSkillTime = now + 1000;
-          console.log(
-            `🕸️ Web hit! Spider ${spider.id} preparing venom combo in 1s...`
-          );
         } else {
           // Web blocked - wait normal cooldown
           spider.nextSkillTime = now + Math.random() * 4000 + 3000; // 3-7 seconds
-          console.log(
-            `🕸️ Web blocked! Spider ${spider.id} waiting for next opportunity...`
-          );
         }
       } else if (spider.currentSkill === "venom") {
         // After venom, wait normal cooldown
         spider.nextSkillTime = now + Math.random() * 4000 + 3000; // 3-7 seconds
-        console.log(
-          `🐍 Venom cast! Spider ${spider.id} waiting for next web...`
-        );
       }
     }
     return;
@@ -280,37 +258,28 @@ function castSpiderSkill(spider: Spider, skill: string) {
 
   if (skill === "web") {
     spider.skillCastDuration = 5000; // 5 seconds
-    console.log(`🕸️ Spider ${spider.id} casting Entangling Web...`);
   } else if (skill === "venom") {
     spider.skillCastDuration = 2000; // 2 seconds
-    console.log(`🐍 Spider ${spider.id} casting Venom Spit...`);
   }
 }
 
 function executeSpiderSkill(spider: Spider, player: Player) {
   if (spider.currentSkill === "web") {
-    console.log(`🕸️ Spider ${spider.id} fires web!`);
     if (!player.isProtected) {
       // Web hit successfully
       immobilizePlayer(player, 3000);
       spider.lastWebHit = true;
       spider.canCastVenom = true;
-      console.log(`🕸️ Web trap successful! Player entangled.`);
     } else {
       // Web was blocked
       spider.lastWebHit = false;
       spider.canCastVenom = false;
-      console.log(`🛡️ Web blocked by Protego!`);
     }
   } else if (spider.currentSkill === "venom") {
-    console.log(`🐍 Spider ${spider.id} spits venom!`);
     if (!player.isProtected) {
       applyPoisonToPlayer(player, 5, 4000); // 5 damage/sec for 4 seconds
       player.isImmobilized = false; // Cancel immobilization
       player.immobilizedEndTime = 0;
-      console.log(`🐍 Venom hit! Player poisoned and freed from web.`);
-    } else {
-      console.log(`🛡️ Venom blocked by Protego!`);
     }
     // Reset combo state after venom attempt
     spider.canCastVenom = false;
@@ -340,7 +309,6 @@ export function castSpellOnSpider(
         // Reset combo if interrupted
         spider.lastWebHit = false;
         spider.canCastVenom = false;
-        console.log(`✨ Spider ${spider.id} spell interrupted and stunned!`);
       } else if (spider.state === "levitating") {
         // Knockback, stun, damage
         spider.state = "stunned";
@@ -348,12 +316,10 @@ export function castSpellOnSpider(
         damageSpider(spider, 5, activeTimeouts, () => {
           console.log("🎉 VICTORY! Spider defeated!");
         });
-        console.log(`✨ Spider ${spider.id} knocked back from air!`);
       } else {
         // Knockback, stun
         spider.state = "stunned";
         spider.stunEndTime = Date.now() + 2000;
-        console.log(`✨ Spider ${spider.id} stunned!`);
       }
       break;
 
@@ -366,11 +332,9 @@ export function castSpellOnSpider(
           // Reset combo if interrupted
           spider.lastWebHit = false;
           spider.canCastVenom = false;
-          console.log(`🪶 Spider ${spider.id} spell interrupted!`);
         }
         spider.state = "levitating";
         spider.levitateEndTime = Date.now() + 2000;
-        console.log(`🪶 Spider ${spider.id} levitated!`);
       }
       break;
 
@@ -379,37 +343,39 @@ export function castSpellOnSpider(
       break;
 
     case "glacius":
-      damageSpider(spider, 10, activeTimeouts, () => {
-        console.log("🎉 VICTORY! Spider defeated!");
-      });
-      console.log(`❄️ Spider ${spider.id} frozen!`);
+      if (spider.currentHealth > 0) {
+        damageSpider(spider, 10, activeTimeouts, () => {
+          console.log("🎉 VICTORY! Spider defeated!");
+        });
+      }
       break;
 
     case "incendio":
-      damageSpider(
-        spider,
-        Math.floor(20 * powerMultiplier),
-        activeTimeouts,
-        () => {
+      if (spider.currentHealth > 0) {
+        // Special fire effect for spider
+        spider.isOnFire = true;
+        spider.fireEndTime = Date.now() + 5000; // 5 seconds
+        spider.fireDamageTime = Date.now() + 1000; // Next fire damage tick
+        damageSpider(spider, 15, activeTimeouts, () => {
           console.log("🎉 VICTORY! Spider defeated!");
-        }
-      );
-      setSpiderOnFire(spider, 2000);
-      console.log(`🔥 Spider ${spider.id} ignited!`);
+        });
+      }
       break;
 
     case "bombarda":
-      damageSpider(spider, 15, activeTimeouts, () => {
-        console.log("🎉 VICTORY! Spider defeated!");
-      });
-      console.log(`💥 Spider ${spider.id} exploded!`);
+      if (spider.currentHealth > 0) {
+        damageSpider(spider, 20, activeTimeouts, () => {
+          console.log("🎉 VICTORY! Spider defeated!");
+        });
+      }
       break;
 
     case "depulso":
-      damageSpider(spider, 10, activeTimeouts, () => {
-        console.log("🎉 VICTORY! Spider defeated!");
-      });
-      console.log(`🪨 Spider ${spider.id} hit by force!`);
+      if (spider.currentHealth > 0) {
+        damageSpider(spider, 15, activeTimeouts, () => {
+          console.log("🎉 VICTORY! Spider defeated!");
+        });
+      }
       break;
   }
 }

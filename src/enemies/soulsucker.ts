@@ -60,27 +60,19 @@ export function damageSoulSucker(
   activeTimeouts: NodeJS.Timeout[],
   onVictory: () => void
 ) {
-  // Can only take damage when stunned
-  if (soulSucker.state !== "stunned") {
-    console.log(
-      `👻 Soul Sucker ${soulSucker.id} cannot be damaged unless stunned!`
-    );
-    return;
-  }
+  // Only take damage when stunned
+  if (soulSucker.state === "stunned") {
+    soulSucker.totalDamageReceived += damage;
+    soulSucker.currentHealth = Math.max(0, soulSucker.currentHealth - damage);
 
-  // Track total damage for defeat condition
-  soulSucker.totalDamageReceived += damage;
-  soulSucker.currentHealth = Math.max(0, soulSucker.currentHealth - damage);
-
-  console.log(
-    `💥 Soul Sucker ${soulSucker.id} takes ${damage} damage! Health: ${soulSucker.currentHealth}/${soulSucker.maxHealth} (Total damage: ${soulSucker.totalDamageReceived}/150)`
-  );
-
-  // Defeat condition: 150 HP total damage
-  if (soulSucker.totalDamageReceived >= 150) {
-    soulSucker.state = "dead";
-    console.log(`💀 Soul Sucker ${soulSucker.id} defeated by total damage!`);
-    onVictory();
+    // Defeat condition: 150 HP total damage when stunned OR current health reaches 0
+    if (
+      soulSucker.totalDamageReceived >= 150 ||
+      soulSucker.currentHealth <= 0
+    ) {
+      soulSucker.state = "dead";
+      onVictory();
+    }
   }
 
   // Visual damage feedback
@@ -100,9 +92,6 @@ export function healSoulSucker(soulSucker: SoulSucker, amount: number) {
     soulSucker.maxHealth,
     soulSucker.currentHealth + amount
   );
-  console.log(
-    `💚 Soul Sucker ${soulSucker.id} healed for ${amount} HP! Health: ${soulSucker.currentHealth}/${soulSucker.maxHealth}`
-  );
 }
 
 // Shadow Phase function
@@ -111,16 +100,12 @@ export function triggerShadowPhase(soulSucker: SoulSucker) {
 
   soulSucker.state = "shadowphase";
   soulSucker.shadowPhaseEndTime = Date.now() + 1000; // 1 second in shadow phase
-  console.log(
-    `🌑 Soul Sucker ${soulSucker.id} enters Shadow Phase to dodge attack!`
-  );
 }
 
 // Player silencing function
 export function silencePlayer(player: any, duration: number) {
   player.isSilenced = true;
   player.silenceEndTime = Date.now() + duration;
-  console.log(`🔇 Player silenced for ${duration / 1000} seconds!`);
 }
 
 // Soul Sucker AI functions
@@ -139,7 +124,6 @@ export function updateSoulSuckerAI(
   // Handle status effects
   if (soulSucker.state === "stunned" && now >= soulSucker.stunEndTime) {
     soulSucker.state = "idle";
-    console.log(`Soul Sucker ${soulSucker.id} recovered from stun`);
   }
 
   if (
@@ -147,7 +131,6 @@ export function updateSoulSuckerAI(
     now >= soulSucker.shadowPhaseEndTime
   ) {
     soulSucker.state = "idle";
-    console.log(`🌑 Soul Sucker ${soulSucker.id} exits Shadow Phase`);
   }
 
   // Handle skill casting
@@ -184,10 +167,8 @@ function castSoulSuckerSkill(soulSucker: SoulSucker, skill: string) {
 
   if (skill === "souldrain") {
     soulSucker.skillCastDuration = 4000; // 4 seconds
-    console.log(`👻 Soul Sucker ${soulSucker.id} casting Soul Drain...`);
   } else if (skill === "silenceshriek") {
     soulSucker.skillCastDuration = 4000; // 4 seconds
-    console.log(`🔇 Soul Sucker ${soulSucker.id} casting Silence Shriek...`);
   }
 }
 
@@ -200,7 +181,6 @@ function executeSoulSuckerSkill(
   gameWon: boolean
 ) {
   if (soulSucker.currentSkill === "souldrain") {
-    console.log(`👻 Soul Sucker ${soulSucker.id} drains player's soul!`);
     if (!player.isProtected) {
       // Stun player for 4 seconds
       player.isImmobilized = true;
@@ -216,25 +196,20 @@ function executeSoulSuckerSkill(
         }, (i + 1) * 1000);
         activeTimeouts.push(timeout);
       }
-
-      console.log(
-        `👻 Soul Drain active! Player stunned for 4 seconds, taking 15 damage/sec!`
-      );
     } else {
-      console.log(`🛡️ Soul Drain blocked by Protego!`);
+      // console.log(`🛡️ Soul Drain blocked by Protego!`);
     }
   } else if (soulSucker.currentSkill === "silenceshriek") {
-    console.log(`🔇 Soul Sucker ${soulSucker.id} shrieks to silence player!`);
     if (!player.isProtected) {
       // Silence player for 3 seconds (this will be handled in main.ts)
-      console.log(
-        `🔇 Silence Shriek hits! Player voice disabled for 3 seconds!`
-      );
+      // console.log(
+      //   `🔇 Silence Shriek hits! Player voice disabled for 3 seconds!`
+      // );
       // Set a flag that main.ts can check
       (player as any).isSilenced = true;
       (player as any).silenceEndTime = Date.now() + 3000;
     } else {
-      console.log(`🛡️ Silence Shriek blocked by Protego!`);
+      // console.log(`🛡️ Silence Shriek blocked by Protego!`);
     }
   }
 }
@@ -258,21 +233,21 @@ export function castSpellOnSoulSucker(
         soulSucker.state = "stunned";
         soulSucker.stunEndTime = Date.now() + 4000; // 4 seconds
         soulSucker.currentSkill = "";
-        console.log(
-          `✨ Soul Sucker ${soulSucker.id} spell interrupted and stunned for 4s!`
-        );
+        // console.log(
+        //   `✨ Soul Sucker ${soulSucker.id} spell interrupted and stunned for 4s!`
+        // );
       } else if (soulSucker.state === "idle") {
         // Knockback, stun
         soulSucker.state = "stunned";
         soulSucker.stunEndTime = Date.now() + 4000; // 4 seconds
-        console.log(`✨ Soul Sucker ${soulSucker.id} stunned for 4s!`);
+        // console.log(`✨ Soul Sucker ${soulSucker.id} stunned for 4s!`);
       }
       break;
 
     case "levicorpus":
-      console.log(
-        `🪶 Levicorpus has no effect on Soul Sucker ${soulSucker.id}!`
-      );
+      // console.log(
+      //   `🪶 Levicorpus has no effect on Soul Sucker ${soulSucker.id}!`
+      // );
       break;
 
     case "protego":
@@ -282,58 +257,58 @@ export function castSpellOnSoulSucker(
     case "glacius":
       if (soulSucker.state === "stunned") {
         damageSoulSucker(soulSucker, 30, activeTimeouts, () => {
-          console.log("🎉 VICTORY! Soul Sucker defeated!");
+          // console.log("🎉 VICTORY! Soul Sucker defeated!");
         });
-        console.log(`❄️ Soul Sucker ${soulSucker.id} frozen for 30 damage!`);
+        // console.log(`❄️ Soul Sucker ${soulSucker.id} frozen for 30 damage!`);
       } else {
         triggerShadowPhase(soulSucker);
-        console.log(
-          `❄️ Soul Sucker ${soulSucker.id} dodged Glacius with Shadow Phase!`
-        );
+        // console.log(
+        //   `❄️ Soul Sucker ${soulSucker.id} dodged Glacius with Shadow Phase!`
+        // );
       }
       break;
 
     case "incendio":
       if (soulSucker.state === "stunned") {
         damageSoulSucker(soulSucker, 30, activeTimeouts, () => {
-          console.log("🎉 VICTORY! Soul Sucker defeated!");
+          // console.log("🎉 VICTORY! Soul Sucker defeated!");
         });
-        console.log(`🔥 Soul Sucker ${soulSucker.id} burned for 30 damage!`);
+        // console.log(`🔥 Soul Sucker ${soulSucker.id} burned for 30 damage!`);
       } else {
         triggerShadowPhase(soulSucker);
-        console.log(
-          `🔥 Soul Sucker ${soulSucker.id} dodged Incendio with Shadow Phase!`
-        );
+        // console.log(
+        //   `🔥 Soul Sucker ${soulSucker.id} dodged Incendio with Shadow Phase!`
+        // );
       }
       break;
 
     case "bombarda":
       if (soulSucker.state === "stunned") {
         damageSoulSucker(soulSucker, 10, activeTimeouts, () => {
-          console.log("🎉 VICTORY! Soul Sucker defeated!");
+          // console.log("🎉 VICTORY! Soul Sucker defeated!");
         });
-        console.log(`💥 Soul Sucker ${soulSucker.id} exploded for 10 damage!`);
+        // console.log(`💥 Soul Sucker ${soulSucker.id} exploded for 10 damage!`);
       } else {
         triggerShadowPhase(soulSucker);
-        console.log(
-          `💥 Soul Sucker ${soulSucker.id} dodged Bombarda with Shadow Phase!`
-        );
+        // console.log(
+        //   `💥 Soul Sucker ${soulSucker.id} dodged Bombarda with Shadow Phase!`
+        // );
       }
       break;
 
     case "depulso":
       if (soulSucker.state === "stunned") {
         damageSoulSucker(soulSucker, 10, activeTimeouts, () => {
-          console.log("🎉 VICTORY! Soul Sucker defeated!");
+          // console.log("🎉 VICTORY! Soul Sucker defeated!");
         });
-        console.log(
-          `🪨 Soul Sucker ${soulSucker.id} hit by force for 10 damage!`
-        );
+        // console.log(
+        //   `🪨 Soul Sucker ${soulSucker.id} hit by force for 10 damage!`
+        // );
       } else {
         triggerShadowPhase(soulSucker);
-        console.log(
-          `🪨 Soul Sucker ${soulSucker.id} dodged Depulso with Shadow Phase!`
-        );
+        // console.log(
+        //   `🪨 Soul Sucker ${soulSucker.id} dodged Depulso with Shadow Phase!`
+        // );
       }
       break;
   }
@@ -362,6 +337,7 @@ export function drawSoulSucker(
     return;
   }
 
+  // Draw the soul sucker image
   // Main body - shadowy appearance
   if (soulSucker.state === "shadowphase") {
     ctx.fillStyle = "rgba(44, 24, 16, 0.5)"; // Semi-transparent in shadow phase
