@@ -2,12 +2,9 @@
 import { Player } from "../entities/Player.js";
 import { Spider, createSpider } from "../entities/enemies/Spider.js";
 import { Troll, createTroll } from "../entities/enemies/Troll.js";
-import {
-  SoulSucker,
-  createSoulSucker,
-} from "../entities/enemies/SoulSucker.js";
+import { Dementor, createDementor } from "../entities/enemies/Dementor.js";
 
-export type EnemyType = "spider" | "troll" | "soulsucker" | "none";
+export type EnemyType = "spider" | "troll" | "dementor" | "none";
 
 export class GameState {
   // Game state
@@ -18,7 +15,7 @@ export class GameState {
   // Enemies
   public spider: Spider | null = null;
   public troll: Troll | null = null;
-  public soulSucker: SoulSucker | null = null;
+  public dementor: Dementor | null = null;
 
   // Player
   public player: Player;
@@ -39,10 +36,10 @@ export class GameState {
 
   constructor(canvas: HTMLCanvasElement) {
     this.ORIGINAL_PLAYER = {
-      x: 100,
-      y: canvas.height / 2 - 75,
-      width: 60,
-      height: 150,
+      x: 50,
+      y: canvas.height / 2 - 230,
+      width: 500,
+      height: 700,
       color: "#4a90e2",
       maxHealth: 100,
       currentHealth: 100,
@@ -79,48 +76,57 @@ export class GameState {
     if (this.currentEnemyType === "spider") {
       this.spider = createSpider(
         0,
-        canvas.width - 520,
-        canvas.height / 2 - 120
+        canvas.width - 830,
+        canvas.height / 2 - 200
       );
       this.troll = null;
-      this.soulSucker = null;
+      this.dementor = null;
     } else if (this.currentEnemyType === "troll") {
       this.spider = null;
-      this.troll = createTroll(1, canvas.width - 200, canvas.height / 2 - 50);
-      this.soulSucker = null;
-    } else if (this.currentEnemyType === "soulsucker") {
+      this.troll = createTroll(1, canvas.width - 650, canvas.height / 2 - 320);
+      this.dementor = null;
+    } else if (this.currentEnemyType === "dementor") {
       this.spider = null;
       this.troll = null;
-      this.soulSucker = createSoulSucker(
+      this.dementor = createDementor(
         2,
-        canvas.width - 200,
-        canvas.height / 2 - 50
+        canvas.width - 650,
+        canvas.height / 2 - 380
       );
     } else {
       this.spider = null;
       this.troll = null;
-      this.soulSucker = null;
+      this.dementor = null;
     }
   }
 
-  public onEnemyDefeated(canvas: HTMLCanvasElement): void {
+  public onEnemyDefeated(
+    canvas: HTMLCanvasElement,
+    cleanupCallback?: () => void
+  ): void {
     console.log(`🔄 Enemy defeated! Current type: ${this.currentEnemyType}`);
 
     if (this.currentEnemyType === "spider") {
       console.log("🕷️ -> 🧌 Transitioning from Spider to Troll");
       this.currentEnemyType = "troll";
+
+      // Clean up spider-specific visual effects when transitioning to troll
+      if (cleanupCallback) {
+        cleanupCallback();
+      }
+
       this.initializeCurrentEnemy(canvas);
       console.log(
         `🧌 Troll initialized with HP: ${this.troll?.currentHealth}/${this.troll?.maxHealth}`
       );
     } else if (this.currentEnemyType === "troll") {
-      console.log("🧌 -> 👻 Transitioning from Troll to Soul Sucker");
-      this.currentEnemyType = "soulsucker";
+      console.log("🧌 -> 👻 Transitioning from Troll to Dementor");
+      this.currentEnemyType = "dementor";
       this.initializeCurrentEnemy(canvas);
       console.log(
-        `👻 Soul Sucker initialized with HP: ${this.soulSucker?.currentHealth}/${this.soulSucker?.maxHealth}`
+        `👻 Dementor initialized with HP: ${this.dementor?.currentHealth}/${this.dementor?.maxHealth}`
       );
-    } else if (this.currentEnemyType === "soulsucker") {
+    } else if (this.currentEnemyType === "dementor") {
       console.log("👻 -> 🎉 All enemies defeated! VICTORY!");
       this.currentEnemyType = "none";
       this.gameWon = true;
@@ -131,29 +137,32 @@ export class GameState {
     );
   }
 
-  public skipCurrentEnemy(canvas: HTMLCanvasElement): void {
+  public skipCurrentEnemy(
+    canvas: HTMLCanvasElement,
+    cleanupCallback?: () => void
+  ): void {
     if (this.isEnemyAlive(this.spider)) {
       this.spider!.state = "dead";
       this.spider!.currentHealth = 0;
-      this.onEnemyDefeated(canvas);
+      this.onEnemyDefeated(canvas, cleanupCallback);
     } else if (this.isEnemyAlive(this.troll)) {
       this.troll!.state = "dead";
       this.troll!.currentHealth = 0;
       if ("totalDamageReceived" in this.troll!) {
-        this.troll!.totalDamageReceived = 100;
+        this.troll!.totalDamageReceived = 120;
       }
-      this.onEnemyDefeated(canvas);
-    } else if (this.isEnemyAlive(this.soulSucker)) {
-      this.soulSucker!.state = "dead";
-      this.soulSucker!.currentHealth = 0;
-      if ("totalDamageReceived" in this.soulSucker!) {
-        this.soulSucker!.totalDamageReceived = 150;
+      this.onEnemyDefeated(canvas, cleanupCallback);
+    } else if (this.isEnemyAlive(this.dementor)) {
+      this.dementor!.state = "dead";
+      this.dementor!.currentHealth = 0;
+      if ("totalDamageReceived" in this.dementor!) {
+        this.dementor!.totalDamageReceived = 150;
       }
-      this.onEnemyDefeated(canvas);
+      this.onEnemyDefeated(canvas, cleanupCallback);
     }
   }
 
-  public isEnemyAlive(enemy: Spider | Troll | SoulSucker | null): boolean {
+  public isEnemyAlive(enemy: Spider | Troll | Dementor | null): boolean {
     const alive = enemy !== null && enemy.state !== "dead";
     if (enemy && enemy.state === "dead") {
       console.log(`💀 Enemy ${enemy.id} is dead (state: ${enemy.state})`);

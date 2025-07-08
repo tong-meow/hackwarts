@@ -2,10 +2,7 @@
 import { Player } from "../entities/Player.js";
 import { Spider, castSpellOnSpider } from "../entities/enemies/Spider.js";
 import { Troll, castSpellOnTroll } from "../entities/enemies/Troll.js";
-import {
-  SoulSucker,
-  castSpellOnSoulSucker,
-} from "../entities/enemies/SoulSucker.js";
+import { Dementor, castSpellOnDementor } from "../entities/enemies/Dementor.js";
 
 export class SpellSystem {
   private lastSpellCast: string | null = null;
@@ -17,8 +14,10 @@ export class SpellSystem {
     player: Player,
     spider: Spider | null,
     troll: Troll | null,
-    soulSucker: SoulSucker | null,
-    activeTimeouts: NodeJS.Timeout[]
+    dementor: Dementor | null,
+    activeTimeouts: NodeJS.Timeout[],
+    onSpiderWebCastComplete: (success: boolean) => void,
+    onHideVenomCasting: () => void
   ): void {
     // Check if player is silenced
     if (player.isSilenced && Date.now() < (player.silenceEndTime || 0)) {
@@ -45,14 +44,22 @@ export class SpellSystem {
 
     // Cast spell on current enemy
     if (spider && spider.state !== "dead") {
-      castSpellOnSpider(spellName, confidence, spider, player, activeTimeouts);
-    } else if (troll && troll.state !== "dead") {
-      castSpellOnTroll(spellName, confidence, troll, player, activeTimeouts);
-    } else if (soulSucker && soulSucker.state !== "dead") {
-      castSpellOnSoulSucker(
+      castSpellOnSpider(
         spellName,
         confidence,
-        soulSucker,
+        spider,
+        player,
+        activeTimeouts,
+        onSpiderWebCastComplete,
+        onHideVenomCasting
+      );
+    } else if (troll && troll.state !== "dead") {
+      castSpellOnTroll(spellName, confidence, troll, player, activeTimeouts);
+    } else if (dementor && dementor.state !== "dead") {
+      castSpellOnDementor(
+        spellName,
+        confidence,
+        dementor,
         player,
         activeTimeouts
       );
@@ -65,24 +72,44 @@ export class SpellSystem {
     player: Player,
     activeTimeouts: NodeJS.Timeout[]
   ): void {
-    // Player glows when casting spells
-    const originalColor = player.color;
-    const glowColors: { [key: string]: string } = {
-      expelliarmus: "#ff6b6b",
-      levicorpus: "#4ecdc4",
-      protego: "#45b7d1",
-      glacius: "#74b9ff",
-      incendio: "#fd79a8",
-      bombarda: "#fdcb6e",
-      depulso: "#6c5ce7",
-    };
+    // Create and display a magical effect element
+    const effectElement = document.createElement("div");
+    effectElement.textContent = `✨ ${spellName.toUpperCase()} ✨`;
+    effectElement.style.position = "absolute";
+    effectElement.style.left = `${player.x + player.width / 2}px`;
+    effectElement.style.top = `${player.y - 50}px`;
+    effectElement.style.color = "#FFD700";
 
-    player.color = glowColors[spellName] || "#ffffff";
-    const glowDuration = Math.floor(confidence * 1000); // Duration based on confidence
+    // Use confidence to affect font size and effect intensity
+    const baseFontSize = 24;
+    const fontSize = Math.floor(baseFontSize * (0.5 + confidence * 0.5)); // 12px to 24px based on confidence
+    effectElement.style.fontSize = `${fontSize}px`;
+    effectElement.style.fontWeight = "bold";
+    effectElement.style.textShadow = "2px 2px 4px rgba(0,0,0,0.5)";
+    effectElement.style.zIndex = "1000";
+    effectElement.style.pointerEvents = "none";
+    effectElement.style.opacity = "1";
+    effectElement.style.transition = "all 2s ease-out";
 
+    document.body.appendChild(effectElement);
+
+    // Animate the effect
+    setTimeout(() => {
+      effectElement.style.transform = "translateY(-100px)";
+      effectElement.style.opacity = "0";
+    }, 100);
+
+    // Use confidence to affect effect duration - higher confidence = longer display
+    const baseDuration = 1500;
+    const effectDuration = Math.floor(baseDuration * (0.7 + confidence * 0.6)); // 1050ms to 2100ms
+
+    // Remove the element after animation
     const timeout = setTimeout(() => {
-      player.color = originalColor;
-    }, glowDuration);
+      if (document.body.contains(effectElement)) {
+        document.body.removeChild(effectElement);
+      }
+    }, effectDuration);
+
     activeTimeouts.push(timeout);
   }
 

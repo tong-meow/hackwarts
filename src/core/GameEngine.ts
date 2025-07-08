@@ -7,7 +7,7 @@ import { StatusEffectsSystem } from "../systems/StatusEffects.js";
 import { Renderer } from "../rendering/Renderer.js";
 import { updateSpiderAI } from "../entities/enemies/Spider.js";
 import { updateTrollAI } from "../entities/enemies/Troll.js";
-import { updateSoulSuckerAI } from "../entities/enemies/SoulSucker.js";
+import { updateDementorAI } from "../entities/enemies/Dementor.js";
 
 export class GameEngine {
   private canvas: HTMLCanvasElement;
@@ -94,7 +94,12 @@ export class GameEngine {
       const x = event.clientX - rect.left;
       const y = event.clientY - rect.top;
       if (this.isPointInSkipButton(x, y)) {
-        this.gameState.skipCurrentEnemy(this.canvas);
+        this.gameState.skipCurrentEnemy(this.canvas, () => {
+          // Clean up spider-specific visual effects when skipping
+          this.renderer.hideSpiderWebOverlays();
+          this.renderer.hidePoisonedEffects();
+          this.renderer.hideVenomCastingOverlay();
+        });
       }
     });
 
@@ -115,8 +120,10 @@ export class GameEngine {
       this.gameState.player,
       this.gameState.spider,
       this.gameState.troll,
-      this.gameState.soulSucker,
-      this.gameState.activeTimeouts
+      this.gameState.dementor,
+      this.gameState.activeTimeouts,
+      (success: boolean) => this.renderer.onSpiderWebCastComplete(success),
+      () => this.renderer.hideVenomCastingOverlay()
     );
 
     this.spellSystem.createMagicalEffect(
@@ -168,7 +175,8 @@ export class GameEngine {
         this.gameState.player,
         this.gameState.activeTimeouts,
         this.gameState.gameOver,
-        this.gameState.gameWon
+        this.gameState.gameWon,
+        (success: boolean) => this.renderer.onSpiderWebCastComplete(success)
       );
     }
 
@@ -183,9 +191,9 @@ export class GameEngine {
       );
     }
 
-    if (this.gameState.soulSucker) {
-      updateSoulSuckerAI(
-        this.gameState.soulSucker,
+    if (this.gameState.dementor) {
+      updateDementorAI(
+        this.gameState.dementor,
         this.gameState.player,
         this.gameState.activeTimeouts,
         this.gameState.gameOver,
@@ -204,7 +212,22 @@ export class GameEngine {
       console.log(
         `🎉 Spider defeated! HP: ${this.gameState.spider.currentHealth}, State: ${this.gameState.spider.state}`
       );
-      this.gameState.onEnemyDefeated(this.canvas);
+
+      // Hide spider web overlays when spider is defeated
+      this.renderer.hideSpiderWebOverlays();
+      // Hide poisoned effects when spider is defeated (poison source is gone)
+      this.renderer.hidePoisonedEffects();
+      // Hide venom casting overlay when spider is defeated
+      this.renderer.hideVenomCastingOverlay();
+      // Hide spider name when spider is defeated
+      this.renderer.hideSpiderName();
+
+      this.gameState.onEnemyDefeated(this.canvas, () => {
+        // Additional cleanup when transitioning from spider to troll
+        this.renderer.hideSpiderWebOverlays();
+        this.renderer.hidePoisonedEffects();
+        this.renderer.hideVenomCastingOverlay();
+      });
       return; // Important: return after handling defeat to prevent multiple calls
     }
 
@@ -213,18 +236,21 @@ export class GameEngine {
       console.log(
         `🎉 Troll defeated! HP: ${this.gameState.troll.currentHealth}/${this.gameState.troll.maxHealth}, Total Damage: ${this.gameState.troll.totalDamageReceived}, State: ${this.gameState.troll.state}`
       );
+      // Hide troll name when troll is defeated
+      this.renderer.hideTrollName();
+
       this.gameState.onEnemyDefeated(this.canvas);
       return; // Important: return after handling defeat to prevent multiple calls
     }
 
-    // Check soul sucker defeat
-    if (
-      this.gameState.soulSucker &&
-      this.gameState.soulSucker.state === "dead"
-    ) {
+    // Check dementor defeat
+    if (this.gameState.dementor && this.gameState.dementor.state === "dead") {
       console.log(
-        `🎉 Soul Sucker defeated! HP: ${this.gameState.soulSucker.currentHealth}/${this.gameState.soulSucker.maxHealth}, Total Damage: ${this.gameState.soulSucker.totalDamageReceived}, State: ${this.gameState.soulSucker.state}`
+        `🎉 Dementor defeated! HP: ${this.gameState.dementor.currentHealth}/${this.gameState.dementor.maxHealth}, Total Damage: ${this.gameState.dementor.totalDamageReceived}, State: ${this.gameState.dementor.state}`
       );
+      // Hide dementor name when dementor is defeated
+      this.renderer.hideDementorName();
+
       this.gameState.onEnemyDefeated(this.canvas);
       return; // Important: return after handling defeat to prevent multiple calls
     }
@@ -242,14 +268,14 @@ export class GameEngine {
     }
 
     if (
-      this.gameState.soulSucker &&
-      this.gameState.soulSucker.currentHealth <= 0 &&
-      this.gameState.soulSucker.state !== "dead"
+      this.gameState.dementor &&
+      this.gameState.dementor.currentHealth <= 0 &&
+      this.gameState.dementor.state !== "dead"
     ) {
       console.log(
-        `🔧 Force-killing soul sucker with 0 HP. Current state: ${this.gameState.soulSucker.state}, HP: ${this.gameState.soulSucker.currentHealth}`
+        `🔧 Force-killing dementor with 0 HP. Current state: ${this.gameState.dementor.state}, HP: ${this.gameState.dementor.currentHealth}`
       );
-      this.gameState.soulSucker.state = "dead";
+      this.gameState.dementor.state = "dead";
     }
 
     if (
@@ -267,12 +293,29 @@ export class GameEngine {
   private renderGame(): void {
     this.renderer.clearCanvas();
 
-    // Show/hide spider decoration based on current enemy
-    if (this.gameState.currentEnemyType === "spider") {
-      this.renderer.showSpiderDecoration();
-    } else {
-      this.renderer.hideSpiderDecoration();
-    }
+    // Update animated backgrounds (always running)
+    this.renderer.updateAnimatedBackgrounds();
+
+    // Update spider web overlays
+    this.renderer.updateSpiderWebOverlays(
+      this.gameState.spider,
+      this.gameState.player
+    );
+
+    // Update poisoned overlays
+    this.renderer.updatePoisonedOverlays(this.gameState.player);
+
+    // Update venom casting overlay
+    this.renderer.updateVenomCastingOverlay(this.gameState.spider);
+
+    // Update spider name display
+    this.renderer.updateSpiderNameDisplay(this.gameState.spider);
+
+    // Update troll name display
+    this.renderer.updateTrollNameDisplay(this.gameState.troll);
+
+    // Update dementor name display
+    this.renderer.updateDementorNameDisplay(this.gameState.dementor);
 
     // Draw player
     this.renderer.drawPlayer(this.gameState.player);
@@ -281,7 +324,7 @@ export class GameEngine {
     this.renderer.drawCurrentEnemy(
       this.gameState.spider,
       this.gameState.troll,
-      this.gameState.soulSucker
+      this.gameState.dementor
     );
 
     // Draw health bars
@@ -289,7 +332,7 @@ export class GameEngine {
       this.gameState.player,
       this.gameState.spider,
       this.gameState.troll,
-      this.gameState.soulSucker
+      this.gameState.dementor
     );
 
     // Draw enhanced status effects
@@ -297,12 +340,10 @@ export class GameEngine {
       this.gameState.player,
       this.gameState.spider,
       this.gameState.troll,
-      this.gameState.soulSucker
+      this.gameState.dementor
     );
 
     // Draw UI elements
-    this.gameUI.drawDebugSpeechDisplay();
-    this.gameUI.drawSpellbook();
     this.gameUI.drawInstructions();
 
     // Draw skip button
@@ -331,6 +372,12 @@ export class GameEngine {
     this.gameState.resetGame(this.canvas);
     this.spellSystem.resetStats();
     this.gameUI.setLastRecognizedSpell("");
+    this.renderer.hideSpiderWebOverlays(); // Hide spider web overlays on reset
+    this.renderer.hidePoisonedEffects(); // Hide poisoned effects on reset
+    this.renderer.hideVenomCastingOverlay(); // Hide venom casting overlay on reset
+    this.renderer.hideSpiderName(); // Hide spider name on reset
+    this.renderer.hideTrollName(); // Hide troll name on reset
+    this.renderer.hideDementorName(); // Hide dementor name on reset
   }
 
   public start(): void {

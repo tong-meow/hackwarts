@@ -2,47 +2,582 @@
 import { Player } from "../entities/Player.js";
 import { Spider, drawSpider } from "../entities/enemies/Spider.js";
 import { Troll, drawTroll } from "../entities/enemies/Troll.js";
-import { SoulSucker, drawSoulSucker } from "../entities/enemies/SoulSucker.js";
+import { Dementor, drawDementor } from "../entities/enemies/Dementor.js";
 
 export class Renderer {
   private canvas: HTMLCanvasElement;
   private ctx: CanvasRenderingContext2D;
-  private spiderDecorationElement: HTMLImageElement | null = null;
+
+  // Spider web overlay system
+  private spiderWebElements: HTMLImageElement[] = [];
+  private isShowingWebsForImmobilization: boolean = false;
+
+  // Poisoned overlay system
+  private poisonedElements: HTMLImageElement[] = [];
+  private isShowingPoisonedEffects: boolean = false;
+  private poisonedAnimationStartTime: number = 0;
+
+  // Venom casting overlay system
+  private venomElement: HTMLImageElement | null = null;
+  private isShowingVenomCasting: boolean = false;
+
+  // Animated background system
+  private backgroundElements: HTMLImageElement[] = [];
+  private backgroundAnimationStartTime: number = 0;
+
+  // Spider name display system
+  private spiderNameElement: HTMLImageElement | null = null;
+
+  // Troll name display system
+  private trollNameElement: HTMLImageElement | null = null;
+
+  // Dementor name display system
+  private dementorNameElement: HTMLImageElement | null = null;
 
   constructor(canvas: HTMLCanvasElement, ctx: CanvasRenderingContext2D) {
     this.canvas = canvas;
     this.ctx = ctx;
-    this.initializeSpiderDecoration();
+    this.initializeSpiderWebOverlays();
+    this.initializePoisonedOverlays();
+    this.initializeVenomOverlay();
+    this.initializeAnimatedBackgrounds();
+    this.initializeSpiderName();
+    this.initializeTrollName();
+    this.initializeDementorName();
   }
 
-  private initializeSpiderDecoration(): void {
-    this.spiderDecorationElement = new Image();
-    this.spiderDecorationElement.src = "/assets/background/spider_decor.svg";
-    this.spiderDecorationElement.style.position = "absolute";
-    this.spiderDecorationElement.style.top = "0";
-    this.spiderDecorationElement.style.left = "0";
-    this.spiderDecorationElement.style.width = "100%";
-    this.spiderDecorationElement.style.height = "100%";
-    this.spiderDecorationElement.style.pointerEvents = "none";
-    this.spiderDecorationElement.style.zIndex = "-1";
+  private initializeSpiderWebOverlays(): void {
+    for (let i = 1; i <= 6; i++) {
+      const webElement = new Image();
+      webElement.src = `/assets/visual_effect/spider_${i}.svg`;
+      webElement.style.position = "absolute";
+      webElement.style.top = "0";
+      webElement.style.left = "0";
+      webElement.style.width = "100%";
+      webElement.style.height = "100%";
+      webElement.style.pointerEvents = "none";
+      webElement.style.display = "none";
+
+      // Set z-index: 1-3 below canvas (-1), 4-6 above canvas (1)
+      webElement.style.zIndex = i <= 3 ? "-1" : "1";
+
+      this.spiderWebElements.push(webElement);
+    }
   }
 
-  public showSpiderDecoration(): void {
+  private initializePoisonedOverlays(): void {
+    for (let i = 1; i <= 4; i++) {
+      const poisonedElement = new Image();
+      poisonedElement.src = `/assets/visual_effect/poisoned_${i}.svg`;
+      poisonedElement.style.position = "absolute";
+      poisonedElement.style.top = "0";
+      poisonedElement.style.left = "0";
+      poisonedElement.style.width = "100%";
+      poisonedElement.style.height = "100%";
+      poisonedElement.style.pointerEvents = "none";
+      poisonedElement.style.display = "none";
+
+      // All poisoned effects display above canvas
+      poisonedElement.style.zIndex = "1";
+
+      this.poisonedElements.push(poisonedElement);
+    }
+  }
+
+  private initializeVenomOverlay(): void {
+    const venomElement = new Image();
+    venomElement.src = `/assets/visual_effect/venom_1.svg`;
+    venomElement.style.position = "absolute";
+    venomElement.style.top = "0";
+    venomElement.style.left = "0";
+    venomElement.style.width = "100%";
+    venomElement.style.height = "100%";
+    venomElement.style.pointerEvents = "none";
+    venomElement.style.display = "none";
+    venomElement.style.zIndex = "1"; // Above canvas
+
+    this.venomElement = venomElement;
+  }
+
+  private initializeAnimatedBackgrounds(): void {
+    for (let i = 1; i <= 4; i++) {
+      const bgElement = new Image();
+      bgElement.src = `/assets/background/bg_${i}.svg`;
+      bgElement.style.position = "absolute";
+      bgElement.style.top = "0";
+      bgElement.style.left = "0";
+      bgElement.style.width = "100%";
+      bgElement.style.height = "100%";
+      bgElement.style.pointerEvents = "none";
+      bgElement.style.display = "block"; // Always visible
+
+      // All backgrounds behind canvas
+      bgElement.style.zIndex = "-2";
+
+      // Add to DOM immediately since they're always visible
+      document.body.appendChild(bgElement);
+
+      this.backgroundElements.push(bgElement);
+    }
+
+    this.backgroundAnimationStartTime = Date.now();
+  }
+
+  private initializeSpiderName(): void {
+    const spiderNameElement = new Image();
+    spiderNameElement.src = `/assets/names/spider.png`;
+    spiderNameElement.style.position = "absolute";
+    spiderNameElement.style.width = "480px"; // Half the width of spider image (960px / 2)
+    spiderNameElement.style.height = "120px"; // Proportional height (240px / 2)
+    spiderNameElement.style.right = "120px"; // Move left by increasing right value
+    spiderNameElement.style.bottom = "180px"; // Move up by increasing bottom value
+    spiderNameElement.style.pointerEvents = "none";
+    spiderNameElement.style.display = "none";
+    spiderNameElement.style.zIndex = "10"; // High z-index to be above all other images
+
+    this.spiderNameElement = spiderNameElement;
+  }
+
+  private initializeTrollName(): void {
+    const trollNameElement = new Image();
+    trollNameElement.src = `/assets/names/troll.png`;
+    trollNameElement.style.position = "absolute";
+    trollNameElement.style.width = "340px"; // Half the width of troll image (960px / 2)
+    trollNameElement.style.height = "120px"; // Proportional height (240px / 2)
+    trollNameElement.style.right = "180px";
+    trollNameElement.style.bottom = "170px";
+    trollNameElement.style.pointerEvents = "none";
+    trollNameElement.style.display = "none";
+    trollNameElement.style.zIndex = "10"; // High z-index to be above all other images
+
+    this.trollNameElement = trollNameElement;
+  }
+
+  private initializeDementorName(): void {
+    const dementorNameElement = new Image();
+    dementorNameElement.src = `/assets/names/dementor.png`;
+    dementorNameElement.style.position = "absolute";
+    dementorNameElement.style.width = "400px"; // Half the width of troll image (960px / 2)
+    dementorNameElement.style.height = "120px"; // Proportional height (240px / 2)
+    dementorNameElement.style.right = "180px";
+    dementorNameElement.style.bottom = "170px";
+    dementorNameElement.style.pointerEvents = "none";
+    dementorNameElement.style.display = "none";
+    dementorNameElement.style.zIndex = "10"; // High z-index to be above all other images
+
+    this.dementorNameElement = dementorNameElement;
+  }
+
+  public updateSpiderNameDisplay(spider: Spider | null): void {
+    if (spider && spider.state !== "dead") {
+      // Show spider name
+      if (
+        this.spiderNameElement &&
+        !document.body.contains(this.spiderNameElement)
+      ) {
+        document.body.appendChild(this.spiderNameElement);
+      }
+      if (this.spiderNameElement) {
+        this.spiderNameElement.style.display = "block";
+      }
+    } else {
+      // Hide spider name
+      if (this.spiderNameElement) {
+        this.spiderNameElement.style.display = "none";
+      }
+    }
+  }
+
+  public hideSpiderName(): void {
+    if (this.spiderNameElement) {
+      this.spiderNameElement.style.display = "none";
+    }
+  }
+
+  public updateTrollNameDisplay(troll: Troll | null): void {
+    if (troll && troll.state !== "dead") {
+      // Show troll name
+      if (
+        this.trollNameElement &&
+        !document.body.contains(this.trollNameElement)
+      ) {
+        document.body.appendChild(this.trollNameElement);
+      }
+      if (this.trollNameElement) {
+        this.trollNameElement.style.display = "block";
+      }
+    } else {
+      // Hide troll name
+      if (this.trollNameElement) {
+        this.trollNameElement.style.display = "none";
+      }
+    }
+  }
+
+  public hideTrollName(): void {
+    if (this.trollNameElement) {
+      this.trollNameElement.style.display = "none";
+    }
+  }
+
+  public updateDementorNameDisplay(dementor: Dementor | null): void {
+    if (dementor && dementor.state !== "dead") {
+      // Show dementor name
+      if (
+        this.dementorNameElement &&
+        !document.body.contains(this.dementorNameElement)
+      ) {
+        document.body.appendChild(this.dementorNameElement);
+      }
+      if (this.dementorNameElement) {
+        this.dementorNameElement.style.display = "block";
+      }
+    } else {
+      // Hide dementor name
+      if (this.dementorNameElement) {
+        this.dementorNameElement.style.display = "none";
+      }
+    }
+  }
+
+  public hideDementorName(): void {
+    if (this.dementorNameElement) {
+      this.dementorNameElement.style.display = "none";
+    }
+  }
+
+  public updateSpiderWebOverlays(spider: Spider | null, player: Player): void {
+    // If spider is dead or null, always hide webs immediately
+    if (!spider || spider.state === "dead") {
+      if (this.isShowingWebsForImmobilization) {
+        this.hideSpiderWebOverlays();
+        this.isShowingWebsForImmobilization = false;
+      }
+      return;
+    }
+
+    // Spider is alive, check if it's casting web
+    if (spider.state === "casting" && spider.currentSkill === "web") {
+      const now = Date.now();
+      const elapsedTime = now - spider.skillCastStartTime;
+      const webIndex = Math.floor(elapsedTime / 500); // Show next web every 500ms
+
+      // Show webs 1 to (webIndex + 1), but max 6
+      for (let i = 0; i < this.spiderWebElements.length; i++) {
+        const webElement = this.spiderWebElements[i];
+
+        if (i <= webIndex) {
+          if (!document.body.contains(webElement)) {
+            document.body.appendChild(webElement);
+          }
+          webElement.style.display = "block";
+        } else {
+          webElement.style.display = "none";
+        }
+      }
+      return;
+    }
+
+    // Spider is not casting web, check if player is immobilized by spider web
+    if (player.isImmobilized && Date.now() < player.immobilizedEndTime) {
+      // Player is trapped by spider web - keep all webs visible
+      if (!this.isShowingWebsForImmobilization) {
+        this.showAllSpiderWebs();
+        this.isShowingWebsForImmobilization = true;
+      }
+    } else {
+      // Player is not trapped by spider web - hide webs
+      if (this.isShowingWebsForImmobilization) {
+        this.hideSpiderWebOverlays();
+        this.isShowingWebsForImmobilization = false;
+      }
+    }
+  }
+
+  public onSpiderWebCastComplete(success: boolean): void {
+    if (success) {
+      // Show all webs and let updateSpiderWebOverlays handle keeping them visible while player is trapped
+      this.showAllSpiderWebs();
+      this.isShowingWebsForImmobilization = true;
+    } else {
+      // Hide immediately if cast failed or was canceled
+      this.hideSpiderWebOverlays();
+      this.isShowingWebsForImmobilization = false;
+    }
+  }
+
+  private showAllSpiderWebs(): void {
+    for (const webElement of this.spiderWebElements) {
+      if (!document.body.contains(webElement)) {
+        document.body.appendChild(webElement);
+      }
+      webElement.style.display = "block";
+    }
+  }
+
+  public hideSpiderWebOverlays(): void {
+    for (const webElement of this.spiderWebElements) {
+      webElement.style.display = "none";
+    }
+    this.isShowingWebsForImmobilization = false;
+  }
+
+  public updatePoisonedOverlays(player: Player): void {
+    if (player.isPoisoned && Date.now() < player.poisonEndTime) {
+      // Player is poisoned - show all 4 poisoned effects together
+      if (!this.isShowingPoisonedEffects) {
+        this.showPoisonedEffects();
+        this.isShowingPoisonedEffects = true;
+        this.poisonedAnimationStartTime = Date.now();
+      }
+
+      // Frame-by-frame animation: each image gets its own animation cycle
+      const now = Date.now();
+      const animationElapsed = now - this.poisonedAnimationStartTime;
+      const frameTime = Math.floor(animationElapsed / 200); // 0.2 seconds per frame
+
+      // Show all 4 images with individual animation offsets
+      for (let i = 0; i < this.poisonedElements.length; i++) {
+        const poisonedElement = this.poisonedElements[i];
+
+        if (!document.body.contains(poisonedElement)) {
+          document.body.appendChild(poisonedElement);
+        }
+
+        poisonedElement.style.display = "block";
+
+        // Apply frame-by-frame animation to each image individually
+        // Each image has different animation timing to create lively effect
+        const individualFrameTime = (frameTime + i) % 4; // Offset each image's animation
+        const animationOffset = this.getPoisonedAnimationOffset(
+          i,
+          individualFrameTime
+        );
+
+        poisonedElement.style.transform = `translate(${animationOffset.x}px, ${animationOffset.y}px)`;
+      }
+    } else {
+      // Player is not poisoned - hide effects
+      if (this.isShowingPoisonedEffects) {
+        this.hidePoisonedEffects();
+        this.isShowingPoisonedEffects = false;
+      }
+    }
+  }
+
+  private getPoisonedAnimationOffset(
+    imageIndex: number,
+    frameTime: number
+  ): { x: number; y: number } {
+    // Different animation patterns for each image to create dramatic lively effect
+    const animationPatterns = [
+      // Image 1: Dramatic circular movement
+      [
+        { x: 0, y: 0 },
+        { x: 8, y: -4 },
+        { x: 0, y: -8 },
+        { x: -8, y: -4 },
+      ],
+      // Image 2: Strong horizontal sway
+      [
+        { x: 0, y: 0 },
+        { x: 12, y: 2 },
+        { x: 0, y: 4 },
+        { x: -12, y: 2 },
+      ],
+      // Image 3: Pronounced vertical bob
+      [
+        { x: 0, y: 0 },
+        { x: 2, y: 10 },
+        { x: -2, y: 0 },
+        { x: 2, y: -10 },
+      ],
+      // Image 4: Dramatic diagonal drift with rotation effect
+      [
+        { x: 0, y: 0 },
+        { x: 10, y: 8 },
+        { x: -4, y: 2 },
+        { x: -10, y: -8 },
+      ],
+    ];
+
+    return animationPatterns[imageIndex][frameTime];
+  }
+
+  private showPoisonedEffects(): void {
+    for (const poisonedElement of this.poisonedElements) {
+      if (!document.body.contains(poisonedElement)) {
+        document.body.appendChild(poisonedElement);
+      }
+      poisonedElement.style.display = "block";
+      poisonedElement.style.transform = "translate(0px, 0px)"; // Reset transform
+    }
+  }
+
+  public hidePoisonedEffects(): void {
+    for (const poisonedElement of this.poisonedElements) {
+      poisonedElement.style.display = "none";
+      poisonedElement.style.transform = "translate(0px, 0px)"; // Reset transform
+    }
+    this.isShowingPoisonedEffects = false;
+  }
+
+  public updateVenomCastingOverlay(spider: Spider | null): void {
     if (
-      this.spiderDecorationElement &&
-      !document.body.contains(this.spiderDecorationElement)
+      !spider ||
+      spider.state !== "casting" ||
+      spider.currentSkill !== "venom"
     ) {
-      document.body.appendChild(this.spiderDecorationElement);
+      if (this.isShowingVenomCasting) {
+        this.hideVenomCastingOverlay();
+      }
+      return;
     }
-    if (this.spiderDecorationElement) {
-      this.spiderDecorationElement.style.display = "block";
+
+    const now = Date.now();
+    const elapsedTime = now - spider.skillCastStartTime;
+
+    if (!this.isShowingVenomCasting) {
+      this.showVenomCastingOverlay();
+      this.isShowingVenomCasting = true;
+    }
+
+    if (this.venomElement) {
+      this.venomElement.style.display = "block";
+      const frameTime = Math.floor(elapsedTime / 100); // 0.1 seconds per frame
+      const animationOffset = this.getVenomAnimationOffset(frameTime);
+      this.venomElement.style.transform = `translate(${animationOffset.x}px, ${animationOffset.y}px)`;
     }
   }
 
-  public hideSpiderDecoration(): void {
-    if (this.spiderDecorationElement) {
-      this.spiderDecorationElement.style.display = "none";
+  private getVenomAnimationOffset(frameTime: number): { x: number; y: number } {
+    const animationPatterns = [
+      // Frame 0: Center
+      { x: 0, y: 0 },
+      // Frame 1: Up
+      { x: 0, y: -10 },
+      // Frame 2: Down
+      { x: 0, y: 10 },
+      // Frame 3: Left
+      { x: -10, y: 0 },
+      // Frame 4: Right
+      { x: 10, y: 0 },
+      // Frame 5: Up-Left
+      { x: -10, y: -10 },
+      // Frame 6: Up-Right
+      { x: 10, y: -10 },
+      // Frame 7: Down-Left
+      { x: -10, y: 10 },
+      // Frame 8: Down-Right
+      { x: 10, y: 10 },
+    ];
+    return animationPatterns[frameTime % animationPatterns.length];
+  }
+
+  private showVenomCastingOverlay(): void {
+    if (this.venomElement) {
+      if (!document.body.contains(this.venomElement)) {
+        document.body.appendChild(this.venomElement);
+      }
+      this.venomElement.style.display = "block";
+      this.venomElement.style.transform = "translate(0px, 0px)"; // Reset transform
     }
+  }
+
+  public hideVenomCastingOverlay(): void {
+    if (this.venomElement) {
+      this.venomElement.style.display = "none";
+      this.venomElement.style.transform = "translate(0px, 0px)"; // Reset transform
+    }
+    this.isShowingVenomCasting = false;
+  }
+
+  public updateAnimatedBackgrounds(): void {
+    const now = Date.now();
+    const animationElapsed = now - this.backgroundAnimationStartTime;
+
+    for (let i = 0; i < this.backgroundElements.length; i++) {
+      const bgElement = this.backgroundElements[i];
+      const bgIndex = i + 1; // bg_1, bg_2, bg_3, bg_4
+
+      // Different frame timings:
+      // bg_1 and bg_3: every 0.5 seconds (500ms)
+      // bg_2 and bg_4: every 0.4 seconds (400ms)
+      let frameInterval;
+      if (bgIndex === 1 || bgIndex === 3) {
+        frameInterval = 500; // 0.5 seconds
+      } else {
+        frameInterval = 400; // 0.4 seconds
+      }
+
+      const frameTime = Math.floor(animationElapsed / frameInterval);
+      const animationOffset = this.getBackgroundAnimationOffset(
+        bgIndex,
+        frameTime
+      );
+
+      bgElement.style.transform = `translate(${animationOffset.x}px, ${animationOffset.y}px)`;
+    }
+  }
+
+  private getBackgroundAnimationOffset(
+    bgIndex: number,
+    frameTime: number
+  ): { x: number; y: number } {
+    // Different animation patterns for each background to create layered depth effect
+    const animationPatterns = [
+      // bg_1: Slow horizontal drift
+      [
+        { x: 0, y: 0 },
+        { x: 2, y: 0 },
+        { x: 0, y: 0 },
+        { x: -2, y: 0 },
+      ],
+      // bg_2: Gentle vertical sway
+      [
+        { x: 0, y: 0 },
+        { x: 0, y: 3 },
+        { x: 0, y: 0 },
+        { x: 0, y: -3 },
+      ],
+      // bg_3: Diagonal gentle drift
+      [
+        { x: 0, y: 0 },
+        { x: 1, y: 1 },
+        { x: 0, y: 0 },
+        { x: -1, y: -1 },
+      ],
+      // bg_4: Circular subtle movement
+      [
+        { x: 0, y: 0 },
+        { x: 2, y: -1 },
+        { x: 0, y: -2 },
+        { x: -2, y: -1 },
+      ],
+    ];
+
+    const patternIndex = (bgIndex - 1) % animationPatterns.length;
+    const frameIndex = frameTime % animationPatterns[patternIndex].length;
+    return animationPatterns[patternIndex][frameIndex];
+  }
+
+  public cleanupAnimatedBackgrounds(): void {
+    for (const bgElement of this.backgroundElements) {
+      if (document.body.contains(bgElement)) {
+        document.body.removeChild(bgElement);
+      }
+    }
+    this.backgroundElements = [];
+  }
+
+  public cleanup(): void {
+    this.cleanupAnimatedBackgrounds();
+    this.hideSpiderWebOverlays();
+    this.hidePoisonedEffects();
+    this.hideVenomCastingOverlay();
+    this.hideSpiderName();
+    this.hideTrollName();
+    this.hideDementorName();
   }
 
   public clearCanvas(): void {
@@ -50,54 +585,102 @@ export class Renderer {
   }
 
   public drawPlayer(player: Player): void {
-    // Main body
-    this.ctx.fillStyle = player.color;
-    this.ctx.fillRect(player.x, player.y, player.width, player.height);
+    // Add subtle breathing animation (gentle movement)
+    const now = Date.now();
+    const breathingSpeed = 0.002; // Slow breathing
+    const breathingAmplitude = 3; // Small movement range (3 pixels)
+    const breathingOffset = Math.sin(now * breathingSpeed) * breathingAmplitude;
 
-    // Simple head
-    this.ctx.fillStyle = "#fdbcb4";
-    this.ctx.fillRect(player.x + 10, player.y - 20, 40, 30);
+    // Apply breathing animation to y position (up and down movement)
+    const originalY = player.y;
+    player.y = player.originalY + breathingOffset;
 
-    // Eyes
-    this.ctx.fillStyle = "#000000";
-    this.ctx.fillRect(player.x + 18, player.y - 12, 4, 4);
-    this.ctx.fillRect(player.x + 38, player.y - 12, 4, 4);
+    // Create player image if it doesn't exist
+    if (!(window as any).playerImage) {
+      (window as any).playerImage = new Image();
+      (window as any).playerImage.src = "/assets/player.png";
+    }
 
-    // Mouth
-    this.ctx.fillRect(player.x + 25, player.y - 5, 10, 2);
+    const playerImage = (window as any).playerImage;
 
-    // Arms
-    this.ctx.fillStyle = player.color;
-    this.ctx.fillRect(player.x - 20, player.y + 40, 20, 40);
-    this.ctx.fillRect(player.x + player.width, player.y + 40, 20, 40);
+    // Draw the player image with proper aspect ratio
+    if (playerImage.complete) {
+      // Calculate aspect ratio-preserving dimensions using actual image proportions
+      const originalAspectRatio = 302 / 465; // Actual player image dimensions (don't stretch)
+      const targetWidth = player.width;
+      const targetHeight = player.height;
 
-    // Legs
-    this.ctx.fillRect(player.x + 10, player.y + player.height, 20, 40);
-    this.ctx.fillRect(player.x + 30, player.y + player.height, 20, 40);
+      // Calculate the largest size that fits within the target area while maintaining aspect ratio
+      let drawWidth, drawHeight;
+      if (targetWidth / targetHeight > originalAspectRatio) {
+        // Target is wider than original aspect ratio
+        drawHeight = targetHeight;
+        drawWidth = targetHeight * originalAspectRatio;
+      } else {
+        // Target is taller than original aspect ratio
+        drawWidth = targetWidth;
+        drawHeight = targetWidth / originalAspectRatio;
+      }
 
-    // Wand
-    this.ctx.fillStyle = "#8B4513";
-    this.ctx.fillRect(player.x + player.width + 20, player.y + 50, 2, 20);
+      // Center the image within the target area
+      const offsetX = player.x + (targetWidth - drawWidth) / 2;
+      const offsetY = player.y + (targetHeight - drawHeight) / 2;
 
-    // Wand tip
-    this.ctx.fillStyle = "#FFD700";
-    this.ctx.fillRect(player.x + player.width + 19, player.y + 48, 4, 4);
+      this.ctx.drawImage(playerImage, offsetX, offsetY, drawWidth, drawHeight);
+    } else {
+      // Fallback to original drawing if image not loaded
+      // Main body
+      this.ctx.fillStyle = player.color;
+      this.ctx.fillRect(player.x, player.y, player.width, player.height);
+
+      // Simple head
+      this.ctx.fillStyle = "#fdbcb4";
+      this.ctx.fillRect(player.x + 10, player.y - 20, 40, 30);
+
+      // Eyes
+      this.ctx.fillStyle = "#000000";
+      this.ctx.fillRect(player.x + 18, player.y - 12, 4, 4);
+      this.ctx.fillRect(player.x + 38, player.y - 12, 4, 4);
+
+      // Mouth
+      this.ctx.fillRect(player.x + 25, player.y - 5, 10, 2);
+
+      // Arms
+      this.ctx.fillStyle = player.color;
+      this.ctx.fillRect(player.x - 20, player.y + 40, 20, 40);
+      this.ctx.fillRect(player.x + player.width, player.y + 40, 20, 40);
+
+      // Legs
+      this.ctx.fillRect(player.x + 10, player.y + player.height, 20, 40);
+      this.ctx.fillRect(player.x + 30, player.y + player.height, 20, 40);
+
+      // Wand
+      this.ctx.fillStyle = "#8B4513";
+      this.ctx.fillRect(player.x + player.width + 20, player.y + 50, 2, 20);
+
+      // Wand tip
+      this.ctx.fillStyle = "#FFD700";
+      this.ctx.fillRect(player.x + player.width + 19, player.y + 48, 4, 4);
+    }
+
+    // Restore original Y position (don't permanently modify the player object)
+    player.y = originalY;
   }
 
   public drawCollageHealthBar(
-    character: Player | Spider | Troll | SoulSucker,
+    character: Player | Spider | Troll | Dementor,
     x: number,
     y: number,
     label: string,
     align: "left" | "right" = "left"
   ): void {
     // Determine bar width based on character type
-    let barWidth = 500; // Default for player and Troll (increased from 400)
+    let barWidth = 750; // Default for player and Troll (increased from 500)
     if ("type" in character) {
       if (character.type === "spider") {
-        barWidth = 350; // Spider: 40 HP = 350px bar (increased from 280)
-      } else if (character.type === "soulsucker") {
-        barWidth = 600; // Soul Sucker: 150 HP = 600px bar (increased from 500)
+        barWidth = 525; // Spider: 40 HP = 525px bar (increased from 350)
+      } else if (character.type === "dementor") {
+        barWidth = 900; // Dementor: 150 HP = 900px bar (increased from 600)
       }
     }
 
@@ -218,8 +801,8 @@ export class Renderer {
   }
 
   public drawEnemyCastingBar(
-    enemy: Spider | Troll | SoulSucker,
-    x: number,
+    enemy: Spider | Troll | Dementor,
+    _x: number,
     y: number
   ): void {
     if (enemy.state !== "casting" || !enemy.currentSkill) return;
@@ -230,26 +813,41 @@ export class Renderer {
       1.0
     );
 
-    const barWidth = 140;
-    const barHeight = 8;
+    // Calculate bar width based on casting duration
+    // Use a scale factor of 150 pixels per second for longer bars
+    const pixelsPerSecond = 150;
+    const castingDurationSeconds = enemy.skillCastDuration / 1000;
+    const barWidth = castingDurationSeconds * pixelsPerSecond;
+
+    const barHeight = 12;
+
+    // Position the bar so its right edge aligns with the HP bar's right edge
+    const rightEdge = this.canvas.width - 50; // Same as HP bar right edge
+    const barX = rightEdge - barWidth;
 
     // Progress bar background
     this.ctx.fillStyle = "rgba(0, 0, 0, 0.7)";
-    this.ctx.fillRect(x, y, barWidth, barHeight);
+    this.ctx.fillRect(barX, y, barWidth, barHeight);
 
-    // Progress bar fill
-    this.ctx.fillStyle = "#ff6600";
-    this.ctx.fillRect(x, y, barWidth * progress, barHeight);
+    // Progress bar fill (from right to left)
+    this.ctx.fillStyle = "#c6d64f";
+    const progressWidth = barWidth * progress;
+    this.ctx.fillRect(
+      barX + barWidth - progressWidth,
+      y,
+      progressWidth,
+      barHeight
+    );
 
     // Progress bar border
     this.ctx.strokeStyle = "#ffffff";
     this.ctx.lineWidth = 1;
-    this.ctx.strokeRect(x, y, barWidth, barHeight);
+    this.ctx.strokeRect(barX, y, barWidth, barHeight);
 
-    // Skill name
+    // Skill name below the progress bar
     this.ctx.fillStyle = "#ffffff";
-    this.ctx.font = "bold 12px Arial";
-    this.ctx.textAlign = "center";
+    this.ctx.font = "bold 16px Arial";
+    this.ctx.textAlign = "right";
 
     // Format skill name nicely
     let skillName = enemy.currentSkill;
@@ -262,29 +860,21 @@ export class Renderer {
     else if (skillName === "silenceshriek") skillName = "Silence Shriek";
     else skillName = skillName.charAt(0).toUpperCase() + skillName.slice(1);
 
-    this.ctx.fillText(skillName, x + barWidth / 2, y - 5);
-    this.ctx.textAlign = "left";
+    this.ctx.fillText(skillName, barX + barWidth, y + barHeight + 16);
 
-    // Casting time remaining
-    const remaining = Math.max(
-      0,
-      enemy.skillCastDuration - (now - enemy.skillCastStartTime)
-    );
-    const remainingSeconds = Math.ceil(remaining / 1000);
-    this.ctx.fillStyle = "#ffff00";
-    this.ctx.font = "10px Arial";
-    this.ctx.fillText(`${remainingSeconds}s`, x + barWidth + 5, y + 6);
+    this.ctx.textAlign = "left";
   }
 
   public drawEnhancedStatusEffects(
     player: Player,
     spider: Spider | null,
     troll: Troll | null,
-    soulSucker: SoulSucker | null
+    dementor: Dementor | null
   ): void {
-    // Player status effects (below player health bar)
+    // Player status effects (below player health bar at bottom)
     const playerStatusX = 50;
-    const playerStatusY = 50 + 25 + 10; // health bar y + new height + spacing
+    const playerHealthY = this.canvas.height - 120;
+    const playerStatusY = playerHealthY + 25 + 10; // health bar y + height + spacing
     let currentY = playerStatusY;
 
     this.ctx.fillStyle = "#ffffff";
@@ -352,17 +942,11 @@ export class Renderer {
     }
 
     // Enemy status effects (below enemy health bar)
-    const enemy = spider || troll || soulSucker;
+    const enemy = spider || troll || dementor;
     if (enemy) {
       const enemyStatusX = this.canvas.width - 250;
       const enemyStatusY = 50 + 25 + 10; // health bar y + new height + spacing
       let enemyY = enemyStatusY;
-
-      this.ctx.fillStyle = "#ffffff";
-      this.ctx.font = "bold 14px Arial";
-      this.ctx.textAlign = "left";
-      this.ctx.fillText("Enemy Status:", enemyStatusX, enemyY);
-      enemyY += 20;
 
       let hasEnemyStatus = false;
 
@@ -420,8 +1004,8 @@ export class Renderer {
         hasEnemyStatus = true;
       }
 
-      // Soul Sucker-specific status
-      if (soulSucker && soulSucker.state === "shadowphase") {
+      // Dementor-specific status
+      if (dementor && dementor.state === "shadowphase") {
         this.ctx.fillStyle = "#8A2BE2";
         this.ctx.font = "12px Arial";
         this.ctx.fillText(`🌑 Shadow Phase`, enemyStatusX, enemyY);
@@ -566,32 +1150,29 @@ export class Renderer {
     }
   }
 
-  public drawSpiderDecoration(): void {
-    // This method is now handled by the DOM overlay
-    // The actual spider decoration is managed by showSpiderDecoration/hideSpiderDecoration
-  }
-
   public drawCurrentEnemy(
     spider: Spider | null,
     troll: Troll | null,
-    soulSucker: SoulSucker | null
+    dementor: Dementor | null
   ): void {
     if (spider) {
       drawSpider(spider, this.ctx);
-      // Draw casting bar for spider
-      this.drawEnemyCastingBar(spider, spider.x - 10, spider.y - 40);
+      // Draw casting bar aligned with health bar
+      const barWidth = 525;
+      const x = this.canvas.width - barWidth - 50;
+      this.drawEnemyCastingBar(spider, x, 85);
     } else if (troll) {
       drawTroll(troll, this.ctx);
-      // Draw casting bar for troll
-      this.drawEnemyCastingBar(troll, troll.x - 10, troll.y - 40);
-    } else if (soulSucker) {
-      drawSoulSucker(soulSucker, this.ctx);
-      // Draw casting bar for soul sucker
-      this.drawEnemyCastingBar(
-        soulSucker,
-        soulSucker.x - 10,
-        soulSucker.y - 40
-      );
+      // Draw casting bar aligned with health bar
+      const barWidth = 750;
+      const x = this.canvas.width - barWidth - 50;
+      this.drawEnemyCastingBar(troll, x, 85);
+    } else if (dementor) {
+      drawDementor(dementor, this.ctx);
+      // Draw casting bar aligned with health bar
+      const barWidth = 900;
+      const x = this.canvas.width - barWidth - 50;
+      this.drawEnemyCastingBar(dementor, x, 85);
     }
   }
 
@@ -599,10 +1180,11 @@ export class Renderer {
     player: Player,
     spider: Spider | null,
     troll: Troll | null,
-    soulSucker: SoulSucker | null
+    dementor: Dementor | null
   ): void {
-    // Player health bar - top left
-    this.drawCollageHealthBar(player, 50, 50, "Player", "left");
+    // Player health bar - bottom left, below player
+    const playerHealthY = this.canvas.height - 120; // Bottom area, above UI elements
+    this.drawCollageHealthBar(player, 50, playerHealthY, "", "left");
 
     // Enemy health bar - top right (aligned with same 50px margin)
     if (spider) {
@@ -610,7 +1192,7 @@ export class Renderer {
         spider,
         this.canvas.width - 250,
         50,
-        "Spider",
+        "",
         "right"
       );
     } else if (troll) {
@@ -618,15 +1200,15 @@ export class Renderer {
         troll,
         this.canvas.width - 250,
         50,
-        "Troll",
+        "",
         "right"
       );
-    } else if (soulSucker) {
+    } else if (dementor) {
       this.drawCollageHealthBar(
-        soulSucker,
+        dementor,
         this.canvas.width - 250,
         50,
-        "Soul Sucker",
+        "",
         "right"
       );
     }

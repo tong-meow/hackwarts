@@ -5,7 +5,6 @@ import {
   handleStunEffect,
   handleLevitateEffect,
   applyDamageVisualFeedback,
-  drawStatusIndicators,
   drawDeadEnemy,
 } from "../BaseEnemy.js";
 import {
@@ -28,11 +27,17 @@ export interface Spider extends BaseEnemyState {
   canCastWeb: boolean;
   canCastVenom: boolean;
   lastWebHit: boolean;
+
+  // Attack animation
+  isAttacking: boolean;
+  attackStartTime: number;
+  attackDuration: number;
+  attackOffset: number;
 }
 
 // Spider creation and management
 export function createSpider(id: number, x: number, y: number): Spider {
-  const baseEnemy = createBaseEnemy(id, x, y, 480, 240, "#8B4513", 40);
+  const baseEnemy = createBaseEnemy(id, x, y, 960, 480, "#8B4513", 40);
   return {
     ...baseEnemy,
     type: "spider",
@@ -42,6 +47,10 @@ export function createSpider(id: number, x: number, y: number): Spider {
     canCastWeb: true,
     canCastVenom: false,
     lastWebHit: false,
+    isAttacking: false,
+    attackStartTime: 0,
+    attackDuration: 200, // 150ms attack animation (faster)
+    attackOffset: 0,
   };
 }
 
@@ -75,11 +84,40 @@ export function updateSpiderAI(
   player: Player,
   activeTimeouts: NodeJS.Timeout[],
   gameOver: boolean,
-  gameWon: boolean
+  gameWon: boolean,
+  onWebCastComplete?: (success: boolean) => void
 ) {
   if (spider.state === "dead" || gameOver || gameWon) return;
 
   const now = Date.now();
+
+  // Add subtle breathing animation (gentle movement)
+  const breathingSpeed = 0.002; // Slow breathing
+  const breathingAmplitude = 3; // Small movement range (3 pixels)
+  const breathingOffset = Math.sin(now * breathingSpeed) * breathingAmplitude;
+
+  // Apply breathing animation to y position (up and down movement)
+  spider.y = spider.originalY + breathingOffset;
+
+  // Handle attack animation
+  if (spider.isAttacking) {
+    const attackElapsed = now - spider.attackStartTime;
+    if (attackElapsed < spider.attackDuration) {
+      // Apply attack offset (move left and back)
+      const progress = attackElapsed / spider.attackDuration;
+      if (progress < 0.5) {
+        // Moving left
+        spider.attackOffset = -350 * (progress * 2);
+      } else {
+        // Moving back
+        spider.attackOffset = -350 * (2 - progress * 2);
+      }
+    } else {
+      // Attack animation complete
+      spider.isAttacking = false;
+      spider.attackOffset = 0;
+    }
+  }
 
   // Handle status effects using base functions
   handleStunEffect(spider, now);
@@ -110,7 +148,7 @@ export function updateSpiderAI(
   if (spider.state === "casting") {
     if (now >= spider.skillCastStartTime + spider.skillCastDuration) {
       // Execute the skill
-      executeSpiderSkill(spider, player);
+      executeSpiderSkill(spider, player, onWebCastComplete);
       spider.state = "idle";
 
       // Set next skill time based on what just happened
@@ -152,17 +190,27 @@ function castSpiderSkill(spider: Spider, skill: string) {
   }
 }
 
-function executeSpiderSkill(spider: Spider, player: Player) {
+function executeSpiderSkill(
+  spider: Spider,
+  player: Player,
+  onWebCastComplete?: (success: boolean) => void
+) {
+  // Trigger attack animation
+  spider.isAttacking = true;
+  spider.attackStartTime = Date.now();
+
   if (spider.currentSkill === "web") {
     if (!player.isProtected) {
       // Web hit successfully
       immobilizePlayer(player, 3000);
       spider.lastWebHit = true;
       spider.canCastVenom = true;
+      onWebCastComplete?.(true);
     } else {
       // Web was blocked
       spider.lastWebHit = false;
       spider.canCastVenom = false;
+      onWebCastComplete?.(false);
     }
   } else if (spider.currentSkill === "venom") {
     if (!player.isProtected) {
@@ -182,7 +230,9 @@ export function castSpellOnSpider(
   confidence: number,
   spider: Spider,
   player: Player,
-  activeTimeouts: NodeJS.Timeout[]
+  activeTimeouts: NodeJS.Timeout[],
+  onWebCastComplete?: (success: boolean) => void,
+  onVenomCastInterrupted?: () => void
 ) {
   if (spider.state === "dead") return;
 
@@ -191,6 +241,15 @@ export function castSpellOnSpider(
   switch (spellName) {
     case "expelliarmus":
       if (spider.state === "casting") {
+        // Check if web casting was interrupted
+        if (spider.currentSkill === "web") {
+          onWebCastComplete?.(false);
+        }
+        // Check if venom casting was interrupted
+        if (spider.currentSkill === "venom") {
+          onVenomCastInterrupted?.();
+        }
+
         // Cancel spell, knockback, stun
         spider.state = "stunned";
         spider.stunEndTime = Date.now() + 2000;
@@ -222,6 +281,15 @@ export function castSpellOnSpider(
         console.log(`🪶 Spider ${spider.id} already levitating!`);
       } else {
         if (spider.state === "casting") {
+          // Check if web casting was interrupted
+          if (spider.currentSkill === "web") {
+            onWebCastComplete?.(false);
+          }
+          // Check if venom casting was interrupted
+          if (spider.currentSkill === "venom") {
+            onVenomCastInterrupted?.();
+          }
+
           spider.currentSkill = "";
           // Reset combo if interrupted
           spider.lastWebHit = false;
@@ -293,7 +361,7 @@ export function drawSpider(spider: Spider, ctx: CanvasRenderingContext2D) {
   // Create spider image if it doesn't exist
   if (!(window as any).spiderImage) {
     (window as any).spiderImage = new Image();
-    (window as any).spiderImage.src = "/assets/enemies/spider_normal.svg";
+    (window as any).spiderImage.src = "/assets/enemies/spider_normal.png";
   }
 
   const spiderImage = (window as any).spiderImage;
@@ -321,15 +389,14 @@ export function drawSpider(spider: Spider, ctx: CanvasRenderingContext2D) {
     const offsetX = spider.x + (targetWidth - drawWidth) / 2;
     const offsetY = spider.y + (targetHeight - drawHeight) / 2;
 
-    ctx.drawImage(spiderImage, offsetX, offsetY, drawWidth, drawHeight);
-  } else {
-    // Fallback to original drawing if image not loaded
-    ctx.fillStyle = spider.color;
-    ctx.fillRect(spider.x, spider.y, spider.width, spider.height);
+    ctx.drawImage(
+      spiderImage,
+      offsetX + spider.attackOffset,
+      offsetY,
+      drawWidth,
+      drawHeight
+    );
   }
-
-  // Status indicators using base function
-  drawStatusIndicators(spider, ctx);
 
   // Fire indicator
   if (spider.isOnFire) {

@@ -5,7 +5,6 @@ import {
   handleStunEffect,
   handleLevitateEffect,
   applyDamageVisualFeedback,
-  drawStatusIndicators,
   drawDeadEnemy,
 } from "../BaseEnemy.js";
 import { Player, damagePlayer, protectPlayer } from "../Player.js";
@@ -17,11 +16,17 @@ export interface Troll extends BaseEnemyState {
   hasChunkArmor: boolean;
   chunkArmorEndTime: number;
   isRockThrowReflected: boolean; // For Depulso counter
+
+  // Attack animation
+  isAttacking: boolean;
+  attackStartTime: number;
+  attackDuration: number;
+  attackOffset: number;
 }
 
 // Troll creation and management
 export function createTroll(id: number, x: number, y: number): Troll {
-  const baseEnemy = createBaseEnemy(id, x, y, 60, 80, "#654321", 100);
+  const baseEnemy = createBaseEnemy(id, x, y, 600, 800, "#654321", 100);
   return {
     ...baseEnemy,
     type: "troll",
@@ -29,6 +34,10 @@ export function createTroll(id: number, x: number, y: number): Troll {
     hasChunkArmor: false,
     chunkArmorEndTime: 0,
     isRockThrowReflected: false,
+    isAttacking: false,
+    attackStartTime: 0,
+    attackDuration: 200, // 200ms attack animation
+    attackOffset: 0,
   };
 }
 
@@ -85,6 +94,33 @@ export function updateTrollAI(
 
   const now = Date.now();
 
+  // Add subtle breathing animation (gentle movement)
+  const breathingSpeed = 0.002; // Slow breathing
+  const breathingAmplitude = 3; // Small movement range (3 pixels)
+  const breathingOffset = Math.sin(now * breathingSpeed) * breathingAmplitude;
+
+  // Apply breathing animation to y position (up and down movement)
+  troll.y = troll.originalY + breathingOffset;
+
+  // Handle attack animation
+  if (troll.isAttacking) {
+    const attackElapsed = now - troll.attackStartTime;
+    const attackProgress = Math.min(attackElapsed / troll.attackDuration, 1.0);
+
+    if (attackProgress < 0.5) {
+      // First half: move left
+      troll.attackOffset = -100 * (attackProgress * 2); // Move up to 100px left
+    } else {
+      // Second half: move back
+      troll.attackOffset = -100 * (2 - attackProgress * 2); // Move back to original position
+    }
+
+    if (attackProgress >= 1.0) {
+      troll.isAttacking = false;
+      troll.attackOffset = 0;
+    }
+  }
+
   // Handle status effects using base functions
   handleStunEffect(troll, now);
   handleLevitateEffect(troll, now);
@@ -140,6 +176,10 @@ function executeTrollSkill(
   onGameOver: () => void
 ) {
   if (troll.currentSkill === "rockthrow") {
+    // Trigger attack animation for rock throw
+    troll.isAttacking = true;
+    troll.attackStartTime = Date.now();
+
     if (!troll.isRockThrowReflected) {
       // Normal rock throw damage
       if (player.isProtected) {
@@ -287,33 +327,55 @@ export function drawTroll(troll: Troll, ctx: CanvasRenderingContext2D) {
     return;
   }
 
-  // Main body
-  ctx.fillStyle = troll.color;
-  ctx.fillRect(troll.x, troll.y, troll.width, troll.height);
+  // Create troll image if it doesn't exist
+  if (!(window as any).trollImage) {
+    (window as any).trollImage = new Image();
+    (window as any).trollImage.src = "/assets/enemies/troll_normal.png";
+  }
 
-  // Simple face
-  ctx.fillStyle = "#ffffff";
-  ctx.fillRect(troll.x + 10, troll.y + 15, 8, 8); // left eye
-  ctx.fillRect(troll.x + 30, troll.y + 15, 8, 8); // right eye
-  ctx.fillRect(troll.x + 15, troll.y + 35, 20, 6); // mouth
+  const trollImage = (window as any).trollImage;
 
-  // Arms
-  ctx.fillStyle = troll.color;
-  ctx.fillRect(troll.x - 15, troll.y + 20, 15, 25); // left arm
-  ctx.fillRect(troll.x + troll.width, troll.y + 20, 15, 25); // right arm
+  // Draw the troll image with proper aspect ratio
+  if (trollImage.complete) {
+    // Calculate aspect ratio-preserving dimensions
+    const originalAspectRatio = 600 / 800; // Updated troll dimensions
+    const targetWidth = troll.width;
+    const targetHeight = troll.height;
 
-  // Legs
-  ctx.fillRect(troll.x + 10, troll.y + troll.height, 15, 20); // left leg
-  ctx.fillRect(troll.x + 35, troll.y + troll.height, 15, 20); // right leg
+    // Calculate the largest size that fits within the target area while maintaining aspect ratio
+    let drawWidth, drawHeight;
+    if (targetWidth / targetHeight > originalAspectRatio) {
+      // Target is wider than original aspect ratio
+      drawHeight = targetHeight;
+      drawWidth = targetHeight * originalAspectRatio;
+    } else {
+      // Target is taller than original aspect ratio
+      drawWidth = targetWidth;
+      drawHeight = targetWidth / originalAspectRatio;
+    }
 
-  // Status indicators using base function
-  drawStatusIndicators(troll, ctx);
+    // Center the image within the target area
+    const offsetX = troll.x + (targetWidth - drawWidth) / 2;
+    const offsetY = troll.y + (targetHeight - drawHeight) / 2;
+
+    ctx.drawImage(
+      trollImage,
+      offsetX + troll.attackOffset,
+      offsetY,
+      drawWidth,
+      drawHeight
+    );
+  }
 
   // Chunk armor indicator
   if (troll.hasChunkArmor) {
     ctx.fillStyle = "#8B4513";
-    ctx.font = "20px Arial";
-    ctx.fillText("🛡️", troll.x + troll.width + 10, troll.y + 10);
+    ctx.font = "70px Arial"; // Adjusted font size for slightly smaller troll
+    ctx.fillText(
+      "🛡️",
+      troll.x + troll.width + 35 + troll.attackOffset,
+      troll.y + 35
+    );
   }
 }
 

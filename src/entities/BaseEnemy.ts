@@ -111,16 +111,10 @@ export function drawStatusIndicators(
 
 // Common dead enemy drawing
 export function drawDeadEnemy(
-  enemy: BaseEnemyState,
-  ctx: CanvasRenderingContext2D,
-  skullSize: string = "30px"
-): void {
-  ctx.fillStyle = "#444444";
-  ctx.fillRect(enemy.x, enemy.y, enemy.width, enemy.height);
-
-  ctx.fillStyle = "#ffffff";
-  ctx.font = `${skullSize} Arial`;
-  ctx.textAlign = "center";
-  ctx.fillText("💀", enemy.x + enemy.width / 2, enemy.y - 10);
-  ctx.textAlign = "left";
+  _enemy: BaseEnemyState,
+  _ctx: CanvasRenderingContext2D,
+  _skullSize: string = "30px"
+) {
+  // Dead enemies are not drawn - they are simply removed from the game
+  // This function exists for consistency but doesn't render anything
 }
