@@ -21,6 +21,15 @@ export class Renderer {
   private venomElement: HTMLImageElement | null = null;
   private isShowingVenomCasting: boolean = false;
 
+  // Stone throwing overlay system
+  private stoneElements: HTMLImageElement[] = [];
+  private eyeElement: HTMLImageElement | null = null;
+  private isShowingStoneThrowing: boolean = false;
+
+  // Shield overlay system
+  private shieldElement: HTMLImageElement | null = null;
+  private isShowingShield: boolean = false;
+
   // Animated background system
   private backgroundElements: HTMLImageElement[] = [];
   private backgroundAnimationStartTime: number = 0;
@@ -40,6 +49,8 @@ export class Renderer {
     this.initializeSpiderWebOverlays();
     this.initializePoisonedOverlays();
     this.initializeVenomOverlay();
+    this.initializeStoneThrowingOverlay();
+    this.initializeShieldOverlay();
     this.initializeAnimatedBackgrounds();
     this.initializeSpiderName();
     this.initializeTrollName();
@@ -97,6 +108,48 @@ export class Renderer {
     venomElement.style.zIndex = "1"; // Above canvas
 
     this.venomElement = venomElement;
+  }
+
+  private initializeStoneThrowingOverlay(): void {
+    for (let i = 1; i <= 3; i++) {
+      const stoneElement = new Image();
+      stoneElement.src = `/assets/visual_effect/stone_${i}.svg`;
+      stoneElement.style.position = "absolute";
+      stoneElement.style.top = "0";
+      stoneElement.style.left = "0";
+      stoneElement.style.width = "100%"; // Full size like background
+      stoneElement.style.height = "100%"; // Full size like background
+      stoneElement.style.pointerEvents = "none";
+      stoneElement.style.display = "none";
+      stoneElement.style.zIndex = "1"; // Above canvas
+
+      this.stoneElements.push(stoneElement);
+    }
+    this.eyeElement = new Image();
+    this.eyeElement.src = `/assets/visual_effect/eye_1.svg`;
+    this.eyeElement.style.position = "absolute";
+    this.eyeElement.style.top = "0";
+    this.eyeElement.style.left = "0";
+    this.eyeElement.style.width = "100%";
+    this.eyeElement.style.height = "100%";
+    this.eyeElement.style.pointerEvents = "none";
+    this.eyeElement.style.display = "none";
+    this.eyeElement.style.zIndex = "1"; // Above canvas
+  }
+
+  private initializeShieldOverlay(): void {
+    const shieldElement = new Image();
+    shieldElement.src = `/assets/visual_effect/shield_1.svg`;
+    shieldElement.style.position = "absolute";
+    shieldElement.style.top = "0";
+    shieldElement.style.left = "0";
+    shieldElement.style.width = "100%";
+    shieldElement.style.height = "100%";
+    shieldElement.style.pointerEvents = "none";
+    shieldElement.style.display = "none";
+    shieldElement.style.zIndex = "1"; // Above canvas
+
+    this.shieldElement = shieldElement;
   }
 
   private initializeAnimatedBackgrounds(): void {
@@ -492,6 +545,167 @@ export class Renderer {
     this.isShowingVenomCasting = false;
   }
 
+  public updateStoneThrowingOverlay(troll: Troll | null): void {
+    if (
+      !troll ||
+      troll.state !== "casting" ||
+      troll.currentSkill !== "rockthrow"
+    ) {
+      if (this.isShowingStoneThrowing) {
+        this.hideStoneThrowingOverlay();
+      }
+      return;
+    }
+
+    const now = Date.now();
+    const elapsedTime = now - troll.skillCastStartTime;
+
+    if (!this.isShowingStoneThrowing) {
+      this.showStoneThrowingOverlay();
+      this.isShowingStoneThrowing = true;
+    }
+
+    // Apply floating animation to each stone with different timing
+    for (let i = 0; i < this.stoneElements.length; i++) {
+      const stoneElement = this.stoneElements[i];
+      if (stoneElement) {
+        stoneElement.style.display = "block";
+        const animationOffset = this.getStoneFloatingOffset(i, elapsedTime);
+        stoneElement.style.transform = `translate(${animationOffset.x}px, ${animationOffset.y}px)`;
+      }
+    }
+
+    // Apply blinking animation to the eye
+    if (this.eyeElement) {
+      const blinkSpeed = 500; // Blink every 500ms
+      const isBlinkCycle = Math.floor(elapsedTime / blinkSpeed) % 2 === 0;
+      this.eyeElement.style.display = isBlinkCycle ? "block" : "none";
+    }
+  }
+
+  private getStoneFloatingOffset(
+    stoneIndex: number,
+    elapsedTime: number
+  ): { x: number; y: number } {
+    // Different floating patterns for each stone to avoid synchronized movement
+    const baseSpeed = 0.003; // Slow floating speed
+    const time = elapsedTime * baseSpeed;
+
+    // Each stone has different phase offset to prevent synchronized movement
+    const phaseOffset = (stoneIndex * Math.PI * 2) / 3; // 120 degrees apart
+
+    // Floating amplitude - different for each stone
+    const amplitudes = [
+      { x: 15, y: 20 }, // Stone 1: moderate movement
+      { x: 12, y: 25 }, // Stone 2: more vertical movement
+      { x: 18, y: 15 }, // Stone 3: more horizontal movement
+    ];
+
+    const amplitude = amplitudes[stoneIndex] || amplitudes[0];
+
+    // Calculate floating position using sine waves with different frequencies
+    const x =
+      Math.sin(time + phaseOffset) * amplitude.x +
+      Math.sin(time * 0.7 + phaseOffset) * (amplitude.x * 0.3);
+    const y =
+      Math.cos(time * 0.8 + phaseOffset) * amplitude.y +
+      Math.sin(time * 1.3 + phaseOffset) * (amplitude.y * 0.4);
+
+    return { x, y };
+  }
+
+  private showStoneThrowingOverlay(): void {
+    for (const stoneElement of this.stoneElements) {
+      if (!document.body.contains(stoneElement)) {
+        document.body.appendChild(stoneElement);
+      }
+      stoneElement.style.display = "block";
+      stoneElement.style.transform = "translate(0px, 0px)"; // Reset transform
+    }
+
+    // Add eye element to DOM
+    if (this.eyeElement && !document.body.contains(this.eyeElement)) {
+      document.body.appendChild(this.eyeElement);
+    }
+  }
+
+  public hideStoneThrowingOverlay(): void {
+    for (const stoneElement of this.stoneElements) {
+      stoneElement.style.display = "none";
+      stoneElement.style.transform = "translate(0px, 0px)"; // Reset transform
+    }
+
+    // Hide eye element
+    if (this.eyeElement) {
+      this.eyeElement.style.display = "none";
+    }
+
+    this.isShowingStoneThrowing = false;
+  }
+
+  public updateShieldOverlay(troll: Troll | null): void {
+    if (!troll || !troll.hasChunkArmor) {
+      if (this.isShowingShield) {
+        this.hideShieldOverlay();
+      }
+      return;
+    }
+
+    const now = Date.now();
+    const elapsedTime = now - (troll.chunkArmorEndTime - 15000); // Start time of shield
+
+    if (!this.isShowingShield) {
+      this.showShieldOverlay();
+      this.isShowingShield = true;
+    }
+
+    // Apply floating animation to shield
+    if (this.shieldElement) {
+      this.shieldElement.style.display = "block";
+      const animationOffset = this.getShieldFloatingOffset(elapsedTime);
+      this.shieldElement.style.transform = `translate(${animationOffset.x}px, ${animationOffset.y}px)`;
+    }
+  }
+
+  private getShieldFloatingOffset(elapsedTime: number): {
+    x: number;
+    y: number;
+  } {
+    // Gentle floating animation for shield
+    const baseSpeed = 0.002; // Very slow floating
+    const time = elapsedTime * baseSpeed;
+
+    // Gentle floating pattern
+    const amplitude = { x: 8, y: 12 }; // Small movement range
+
+    // Calculate floating position using sine waves
+    const x =
+      Math.sin(time) * amplitude.x + Math.sin(time * 0.6) * (amplitude.x * 0.4);
+    const y =
+      Math.cos(time * 0.8) * amplitude.y +
+      Math.sin(time * 1.2) * (amplitude.y * 0.3);
+
+    return { x, y };
+  }
+
+  private showShieldOverlay(): void {
+    if (this.shieldElement && !document.body.contains(this.shieldElement)) {
+      document.body.appendChild(this.shieldElement);
+    }
+    if (this.shieldElement) {
+      this.shieldElement.style.display = "block";
+      this.shieldElement.style.transform = "translate(0px, 0px)"; // Reset transform
+    }
+  }
+
+  public hideShieldOverlay(): void {
+    if (this.shieldElement) {
+      this.shieldElement.style.display = "none";
+      this.shieldElement.style.transform = "translate(0px, 0px)"; // Reset transform
+    }
+    this.isShowingShield = false;
+  }
+
   public updateAnimatedBackgrounds(): void {
     const now = Date.now();
     const animationElapsed = now - this.backgroundAnimationStartTime;
@@ -575,6 +789,8 @@ export class Renderer {
     this.hideSpiderWebOverlays();
     this.hidePoisonedEffects();
     this.hideVenomCastingOverlay();
+    this.hideStoneThrowingOverlay();
+    this.hideShieldOverlay();
     this.hideSpiderName();
     this.hideTrollName();
     this.hideDementorName();
@@ -813,9 +1029,7 @@ export class Renderer {
       1.0
     );
 
-    // Calculate bar width based on casting duration
-    // Use a scale factor of 150 pixels per second for longer bars
-    const pixelsPerSecond = 150;
+    const pixelsPerSecond = 120;
     const castingDurationSeconds = enemy.skillCastDuration / 1000;
     const barWidth = castingDurationSeconds * pixelsPerSecond;
 

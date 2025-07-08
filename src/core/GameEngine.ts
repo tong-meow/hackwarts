@@ -238,6 +238,10 @@ export class GameEngine {
       );
       // Hide troll name when troll is defeated
       this.renderer.hideTrollName();
+      // Hide stone throwing overlay when troll is defeated
+      this.renderer.hideStoneThrowingOverlay();
+      // Hide shield overlay when troll is defeated
+      this.renderer.hideShieldOverlay();
 
       this.gameState.onEnemyDefeated(this.canvas);
       return; // Important: return after handling defeat to prevent multiple calls
@@ -308,6 +312,12 @@ export class GameEngine {
     // Update venom casting overlay
     this.renderer.updateVenomCastingOverlay(this.gameState.spider);
 
+    // Update stone throwing overlay
+    this.renderer.updateStoneThrowingOverlay(this.gameState.troll);
+
+    // Update shield overlay
+    this.renderer.updateShieldOverlay(this.gameState.troll);
+
     // Update spider name display
     this.renderer.updateSpiderNameDisplay(this.gameState.spider);
 
@@ -375,6 +385,8 @@ export class GameEngine {
     this.renderer.hideSpiderWebOverlays(); // Hide spider web overlays on reset
     this.renderer.hidePoisonedEffects(); // Hide poisoned effects on reset
     this.renderer.hideVenomCastingOverlay(); // Hide venom casting overlay on reset
+    this.renderer.hideStoneThrowingOverlay(); // Hide stone throwing overlay on reset
+    this.renderer.hideShieldOverlay(); // Hide shield overlay on reset
     this.renderer.hideSpiderName(); // Hide spider name on reset
     this.renderer.hideTrollName(); // Hide troll name on reset
     this.renderer.hideDementorName(); // Hide dementor name on reset
