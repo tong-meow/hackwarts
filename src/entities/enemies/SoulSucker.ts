@@ -1,54 +1,28 @@
-// Soul Sucker Enemy System for Hackwarts
+// Soul Sucker Enemy System for Hackwarts - Refactored
+import {
+  BaseEnemyState,
+  createBaseEnemy,
+  handleStunEffect,
+  applyDamageVisualFeedback,
+  drawStatusIndicators,
+  drawDeadEnemy,
+} from "../BaseEnemy.js";
+import { Player, damagePlayer, protectPlayer } from "../Player.js";
 
-import { Player, damagePlayer, protectPlayer } from "./spider.js";
-
-// Soul Sucker enemy interface
-export interface SoulSucker {
-  id: number;
-  x: number;
-  y: number;
-  width: number;
-  height: number;
-  color: string;
-  maxHealth: number;
-  currentHealth: number;
+// Soul Sucker-specific interface extending base enemy
+export interface SoulSucker extends BaseEnemyState {
+  type: "soulsucker";
   totalDamageReceived: number; // For defeat condition (150 HP total damage)
-  originalX: number;
-  originalY: number;
-  originalColor: string;
-
-  // AI states
-  state: "idle" | "casting" | "stunned" | "shadowphase" | "dead";
-  currentSkill: string;
-  skillCastStartTime: number;
-  skillCastDuration: number;
-  nextSkillTime: number;
-  stunEndTime: number;
   shadowPhaseEndTime: number;
 }
 
 // Soul Sucker creation and management
 export function createSoulSucker(id: number, x: number, y: number): SoulSucker {
+  const baseEnemy = createBaseEnemy(id, x, y, 50, 70, "#2c1810", 150);
   return {
-    id,
-    x,
-    y,
-    width: 50,
-    height: 70,
-    color: "#2c1810",
-    maxHealth: 150,
-    currentHealth: 150,
+    ...baseEnemy,
+    type: "soulsucker",
     totalDamageReceived: 0,
-    originalX: x,
-    originalY: y,
-    originalColor: "#2c1810",
-
-    state: "idle",
-    currentSkill: "",
-    skillCastStartTime: 0,
-    skillCastDuration: 0,
-    nextSkillTime: Date.now() + Math.random() * 3000 + 2000,
-    stunEndTime: 0,
     shadowPhaseEndTime: 0,
   };
 }
@@ -65,25 +39,27 @@ export function damageSoulSucker(
     soulSucker.totalDamageReceived += damage;
     soulSucker.currentHealth = Math.max(0, soulSucker.currentHealth - damage);
 
+    console.log(
+      `💀 Soul Sucker ${soulSucker.id} took ${damage} damage. Health: ${soulSucker.currentHealth}/${soulSucker.maxHealth}, Total damage: ${soulSucker.totalDamageReceived}`
+    );
+
     // Defeat condition: 150 HP total damage when stunned OR current health reaches 0
     if (
       soulSucker.totalDamageReceived >= 150 ||
       soulSucker.currentHealth <= 0
     ) {
+      console.log(
+        `💀 Soul Sucker ${soulSucker.id} DEFEATED! State: ${soulSucker.state} -> dead`
+      );
       soulSucker.state = "dead";
       onVictory();
     }
-  }
 
-  // Visual damage feedback
-  const originalColor = soulSucker.color;
-  soulSucker.color = "#ff0000";
-  const timeout = setTimeout(() => {
-    if (soulSucker.state !== "dead") {
-      soulSucker.color = originalColor;
-    }
-  }, 300);
-  activeTimeouts.push(timeout);
+    // Visual damage feedback using base function
+    applyDamageVisualFeedback(soulSucker, activeTimeouts);
+  } else {
+    console.log(`💀 Soul Sucker ${soulSucker.id} dodged damage (not stunned)!`);
+  }
 }
 
 // Soul Sucker heal function
@@ -92,6 +68,7 @@ export function healSoulSucker(soulSucker: SoulSucker, amount: number) {
     soulSucker.maxHealth,
     soulSucker.currentHealth + amount
   );
+  console.log(`💚 Soul Sucker ${soulSucker.id} healed for ${amount} HP!`);
 }
 
 // Shadow Phase function
@@ -100,12 +77,14 @@ export function triggerShadowPhase(soulSucker: SoulSucker) {
 
   soulSucker.state = "shadowphase";
   soulSucker.shadowPhaseEndTime = Date.now() + 1000; // 1 second in shadow phase
+  console.log(`🌑 Soul Sucker ${soulSucker.id} entered shadow phase!`);
 }
 
 // Player silencing function
 export function silencePlayer(player: any, duration: number) {
   player.isSilenced = true;
   player.silenceEndTime = Date.now() + duration;
+  console.log(`🔇 Player silenced for ${duration / 1000}s!`);
 }
 
 // Soul Sucker AI functions
@@ -121,11 +100,10 @@ export function updateSoulSuckerAI(
 
   const now = Date.now();
 
-  // Handle status effects
-  if (soulSucker.state === "stunned" && now >= soulSucker.stunEndTime) {
-    soulSucker.state = "idle";
-  }
+  // Handle status effects using base function
+  handleStunEffect(soulSucker, now);
 
+  // Handle shadow phase
   if (
     soulSucker.state === "shadowphase" &&
     now >= soulSucker.shadowPhaseEndTime
@@ -170,6 +148,8 @@ function castSoulSuckerSkill(soulSucker: SoulSucker, skill: string) {
   } else if (skill === "silenceshriek") {
     soulSucker.skillCastDuration = 4000; // 4 seconds
   }
+
+  console.log(`💀 Soul Sucker ${soulSucker.id} casting ${skill}!`);
 }
 
 function executeSoulSuckerSkill(
@@ -185,6 +165,7 @@ function executeSoulSuckerSkill(
       // Stun player for 4 seconds
       player.isImmobilized = true;
       player.immobilizedEndTime = Date.now() + 4000;
+      console.log(`💀 Soul Drain immobilizes player for 4 seconds!`);
 
       // Deal 15 damage per second for 4 seconds
       for (let i = 0; i < 4; i++) {
@@ -197,19 +178,19 @@ function executeSoulSuckerSkill(
         activeTimeouts.push(timeout);
       }
     } else {
-      // console.log(`🛡️ Soul Drain blocked by Protego!`);
+      console.log(`🛡️ Soul Drain blocked by Protego!`);
     }
   } else if (soulSucker.currentSkill === "silenceshriek") {
     if (!player.isProtected) {
       // Silence player for 3 seconds (this will be handled in main.ts)
-      // console.log(
-      //   `🔇 Silence Shriek hits! Player voice disabled for 3 seconds!`
-      // );
+      console.log(
+        `🔇 Silence Shriek hits! Player voice disabled for 3 seconds!`
+      );
       // Set a flag that main.ts can check
       (player as any).isSilenced = true;
       (player as any).silenceEndTime = Date.now() + 3000;
     } else {
-      // console.log(`🛡️ Silence Shriek blocked by Protego!`);
+      console.log(`🛡️ Silence Shriek blocked by Protego!`);
     }
   }
 }
@@ -233,21 +214,21 @@ export function castSpellOnSoulSucker(
         soulSucker.state = "stunned";
         soulSucker.stunEndTime = Date.now() + 4000; // 4 seconds
         soulSucker.currentSkill = "";
-        // console.log(
-        //   `✨ Soul Sucker ${soulSucker.id} spell interrupted and stunned for 4s!`
-        // );
+        console.log(
+          `✨ Soul Sucker ${soulSucker.id} spell interrupted and stunned for 4s!`
+        );
       } else if (soulSucker.state === "idle") {
         // Knockback, stun
         soulSucker.state = "stunned";
         soulSucker.stunEndTime = Date.now() + 4000; // 4 seconds
-        // console.log(`✨ Soul Sucker ${soulSucker.id} stunned for 4s!`);
+        console.log(`✨ Soul Sucker ${soulSucker.id} stunned for 4s!`);
       }
       break;
 
     case "levicorpus":
-      // console.log(
-      //   `🪶 Levicorpus has no effect on Soul Sucker ${soulSucker.id}!`
-      // );
+      console.log(
+        `🪶 Levicorpus has no effect on Soul Sucker ${soulSucker.id}!`
+      );
       break;
 
     case "protego":
@@ -257,171 +238,113 @@ export function castSpellOnSoulSucker(
     case "glacius":
       if (soulSucker.state === "stunned") {
         damageSoulSucker(soulSucker, 30, activeTimeouts, () => {
-          // console.log("🎉 VICTORY! Soul Sucker defeated!");
+          console.log("🎉 VICTORY! Soul Sucker defeated!");
         });
-        // console.log(`❄️ Soul Sucker ${soulSucker.id} frozen for 30 damage!`);
+        console.log(`❄️ Soul Sucker ${soulSucker.id} frozen for 30 damage!`);
       } else {
         triggerShadowPhase(soulSucker);
-        // console.log(
-        //   `❄️ Soul Sucker ${soulSucker.id} dodged Glacius with Shadow Phase!`
-        // );
+        console.log(
+          `❄️ Soul Sucker ${soulSucker.id} dodged Glacius with Shadow Phase!`
+        );
       }
       break;
 
     case "incendio":
+      const incendioDamage = Math.floor(25 * powerMultiplier);
       if (soulSucker.state === "stunned") {
-        damageSoulSucker(soulSucker, 30, activeTimeouts, () => {
-          // console.log("🎉 VICTORY! Soul Sucker defeated!");
+        damageSoulSucker(soulSucker, incendioDamage, activeTimeouts, () => {
+          console.log("🎉 VICTORY! Soul Sucker defeated!");
         });
-        // console.log(`🔥 Soul Sucker ${soulSucker.id} burned for 30 damage!`);
+        console.log(
+          `🔥 Soul Sucker ${soulSucker.id} burned for ${incendioDamage} damage!`
+        );
       } else {
         triggerShadowPhase(soulSucker);
-        // console.log(
-        //   `🔥 Soul Sucker ${soulSucker.id} dodged Incendio with Shadow Phase!`
-        // );
+        console.log(
+          `🔥 Soul Sucker ${soulSucker.id} dodged Incendio with Shadow Phase!`
+        );
       }
       break;
 
     case "bombarda":
       if (soulSucker.state === "stunned") {
-        damageSoulSucker(soulSucker, 10, activeTimeouts, () => {
-          // console.log("🎉 VICTORY! Soul Sucker defeated!");
+        damageSoulSucker(soulSucker, 15, activeTimeouts, () => {
+          console.log("🎉 VICTORY! Soul Sucker defeated!");
         });
-        // console.log(`💥 Soul Sucker ${soulSucker.id} exploded for 10 damage!`);
+        console.log(`💥 Soul Sucker ${soulSucker.id} exploded for 15 damage!`);
       } else {
         triggerShadowPhase(soulSucker);
-        // console.log(
-        //   `💥 Soul Sucker ${soulSucker.id} dodged Bombarda with Shadow Phase!`
-        // );
+        console.log(
+          `💥 Soul Sucker ${soulSucker.id} dodged Bombarda with Shadow Phase!`
+        );
       }
       break;
 
     case "depulso":
+      const depulsoDamage = Math.floor(20 * powerMultiplier);
       if (soulSucker.state === "stunned") {
-        damageSoulSucker(soulSucker, 10, activeTimeouts, () => {
-          // console.log("🎉 VICTORY! Soul Sucker defeated!");
+        damageSoulSucker(soulSucker, depulsoDamage, activeTimeouts, () => {
+          console.log("🎉 VICTORY! Soul Sucker defeated!");
         });
-        // console.log(
-        //   `🪨 Soul Sucker ${soulSucker.id} hit by force for 10 damage!`
-        // );
+        console.log(
+          `🪨 Soul Sucker ${soulSucker.id} hit by force for ${depulsoDamage} damage!`
+        );
       } else {
         triggerShadowPhase(soulSucker);
-        // console.log(
-        //   `🪨 Soul Sucker ${soulSucker.id} dodged Depulso with Shadow Phase!`
-        // );
+        console.log(
+          `🪨 Soul Sucker ${soulSucker.id} dodged Depulso with Shadow Phase!`
+        );
       }
       break;
   }
 }
 
-// Draw Soul Sucker function
+// Draw soul sucker function
 export function drawSoulSucker(
   soulSucker: SoulSucker,
   ctx: CanvasRenderingContext2D
 ) {
   if (soulSucker.state === "dead") {
-    // Draw dead Soul Sucker
-    ctx.fillStyle = "#444444";
-    ctx.fillRect(
-      soulSucker.x,
-      soulSucker.y,
-      soulSucker.width,
-      soulSucker.height
-    );
-
-    ctx.fillStyle = "#ffffff";
-    ctx.font = "30px Arial";
-    ctx.textAlign = "center";
-    ctx.fillText("💀", soulSucker.x + soulSucker.width / 2, soulSucker.y - 10);
-    ctx.textAlign = "left";
+    drawDeadEnemy(soulSucker, ctx);
     return;
   }
 
-  // Draw the soul sucker image
-  // Main body - shadowy appearance
-  if (soulSucker.state === "shadowphase") {
-    ctx.fillStyle = "rgba(44, 24, 16, 0.5)"; // Semi-transparent in shadow phase
-  } else {
-    ctx.fillStyle = soulSucker.color;
-  }
+  // Apply shadow phase transparency
+  const alpha = soulSucker.state === "shadowphase" ? 0.5 : 1.0;
+  ctx.globalAlpha = alpha;
+
+  // Main body (ghostly appearance)
+  ctx.fillStyle = soulSucker.color;
   ctx.fillRect(soulSucker.x, soulSucker.y, soulSucker.width, soulSucker.height);
 
   // Ghostly face
-  ctx.fillStyle = "#ff4444";
-  ctx.fillRect(soulSucker.x + 8, soulSucker.y + 10, 6, 6); // left eye
-  ctx.fillRect(soulSucker.x + 28, soulSucker.y + 10, 6, 6); // right eye
+  ctx.fillStyle = "#ffffff";
+  ctx.fillRect(soulSucker.x + 8, soulSucker.y + 15, 6, 6); // left eye
+  ctx.fillRect(soulSucker.x + 26, soulSucker.y + 15, 6, 6); // right eye
 
-  // Mouth
+  // Mouth (hollow)
   ctx.fillStyle = "#000000";
-  ctx.fillRect(soulSucker.x + 20, soulSucker.y + 25, 10, 8);
+  ctx.fillRect(soulSucker.x + 15, soulSucker.y + 30, 15, 8); // mouth
 
-  // Flowing robes/shadow tendrils
+  // Ghostly arms (wispy)
   ctx.fillStyle = soulSucker.color;
-  ctx.fillRect(soulSucker.x - 5, soulSucker.y + 50, 10, 30); // left tendril
-  ctx.fillRect(soulSucker.x + soulSucker.width - 5, soulSucker.y + 50, 10, 30); // right tendril
+  ctx.fillRect(soulSucker.x - 10, soulSucker.y + 25, 10, 20); // left arm
+  ctx.fillRect(soulSucker.x + soulSucker.width, soulSucker.y + 25, 10, 20); // right arm
 
-  // Status indicators
-  if (soulSucker.state === "casting") {
-    ctx.fillStyle = "#8b00ff";
-    ctx.font = "20px Arial";
-    ctx.fillText(
-      "⚡",
-      soulSucker.x + soulSucker.width / 2 - 10,
-      soulSucker.y - 15
-    );
-  }
+  // Reset alpha
+  ctx.globalAlpha = 1.0;
 
-  if (soulSucker.state === "stunned") {
-    ctx.fillStyle = "#ffff00";
-    ctx.font = "20px Arial";
-    ctx.fillText(
-      "💫",
-      soulSucker.x + soulSucker.width / 2 - 10,
-      soulSucker.y - 15
-    );
-  }
+  // Status indicators using base function
+  drawStatusIndicators(soulSucker, ctx);
 
+  // Shadow phase indicator
   if (soulSucker.state === "shadowphase") {
-    ctx.fillStyle = "#8b00ff";
-    ctx.font = "20px Arial";
-    ctx.fillText(
-      "🌑",
-      soulSucker.x + soulSucker.width / 2 - 10,
-      soulSucker.y - 15
-    );
-  }
-
-  // Skill casting indicator with progress bar
-  if (soulSucker.state === "casting") {
-    const progress =
-      (Date.now() - soulSucker.skillCastStartTime) /
-      soulSucker.skillCastDuration;
-    const barWidth = 40;
-    const barHeight = 6;
-    const barX = soulSucker.x + soulSucker.width / 2 - barWidth / 2;
-    const barY = soulSucker.y + soulSucker.height + 5;
-
-    ctx.fillStyle = "#333333";
-    ctx.fillRect(barX, barY, barWidth, barHeight);
-
-    ctx.fillStyle = "#8b00ff";
-    ctx.fillRect(barX, barY, barWidth * progress, barHeight);
-
-    // Show skill name being cast
-    ctx.fillStyle = "#8b00ff";
-    ctx.font = "14px Arial";
-    ctx.textAlign = "center";
-    const skillDisplayName =
-      soulSucker.currentSkill === "souldrain"
-        ? "Soul Drain"
-        : soulSucker.currentSkill === "silenceshriek"
-        ? "Silence Shriek"
-        : soulSucker.currentSkill;
-    ctx.fillText(
-      skillDisplayName,
-      soulSucker.x + soulSucker.width / 2,
-      soulSucker.y + soulSucker.height + 25
-    );
-    ctx.textAlign = "left";
+    ctx.fillStyle = "#8A2BE2";
+    ctx.font = "16px Arial";
+    ctx.fillText("🌑", soulSucker.x + soulSucker.width + 5, soulSucker.y + 10);
   }
 }
+
+// Re-export for backward compatibility
+export type { Player };
+export { damagePlayer, protectPlayer };

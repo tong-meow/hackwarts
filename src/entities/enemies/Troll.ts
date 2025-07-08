@@ -1,32 +1,19 @@
-// Troll Enemy System for Hackwarts
+// Troll Enemy System for Hackwarts - Refactored
+import {
+  BaseEnemyState,
+  createBaseEnemy,
+  handleStunEffect,
+  handleLevitateEffect,
+  applyDamageVisualFeedback,
+  drawStatusIndicators,
+  drawDeadEnemy,
+} from "../BaseEnemy.js";
+import { Player, damagePlayer, protectPlayer } from "../Player.js";
 
-import { Player, damagePlayer, protectPlayer } from "./spider.js";
-
-// Troll enemy interface
-export interface Troll {
-  id: number;
-  x: number;
-  y: number;
-  width: number;
-  height: number;
-  color: string;
-  maxHealth: number;
-  currentHealth: number;
+// Troll-specific interface extending base enemy
+export interface Troll extends BaseEnemyState {
+  type: "troll";
   totalDamageReceived: number; // For defeat condition (100 HP total damage)
-  originalX: number;
-  originalY: number;
-  originalColor: string;
-
-  // AI states
-  state: "idle" | "casting" | "stunned" | "levitating" | "dead";
-  currentSkill: string;
-  skillCastStartTime: number;
-  skillCastDuration: number;
-  nextSkillTime: number;
-  stunEndTime: number;
-  levitateEndTime: number;
-
-  // Status effects
   hasChunkArmor: boolean;
   chunkArmorEndTime: number;
   isRockThrowReflected: boolean; // For Depulso counter
@@ -34,28 +21,11 @@ export interface Troll {
 
 // Troll creation and management
 export function createTroll(id: number, x: number, y: number): Troll {
+  const baseEnemy = createBaseEnemy(id, x, y, 60, 80, "#654321", 100);
   return {
-    id,
-    x,
-    y,
-    width: 60,
-    height: 80,
-    color: "#654321",
-    maxHealth: 100,
-    currentHealth: 100,
+    ...baseEnemy,
+    type: "troll",
     totalDamageReceived: 0,
-    originalX: x,
-    originalY: y,
-    originalColor: "#654321",
-
-    state: "idle",
-    currentSkill: "",
-    skillCastStartTime: 0,
-    skillCastDuration: 0,
-    nextSkillTime: Date.now() + Math.random() * 3000 + 2000,
-    stunEndTime: 0,
-    levitateEndTime: 0,
-
     hasChunkArmor: false,
     chunkArmorEndTime: 0,
     isRockThrowReflected: false,
@@ -74,25 +44,32 @@ export function damageTroll(
   troll.currentHealth = Math.max(0, troll.currentHealth - damage);
 
   console.log(
-    `🪨 Troll ${troll.id} took ${damage} damage. Health: ${troll.currentHealth}/${troll.maxHealth}, Total damage: ${troll.totalDamageReceived}`
+    `🪨 Troll ${troll.id} took ${damage} damage. Health: ${troll.currentHealth}/${troll.maxHealth}, Total damage: ${troll.totalDamageReceived}, State: ${troll.state}`
   );
 
   // Defeat condition: 100 HP total damage OR current health reaches 0
-  if (troll.totalDamageReceived >= 100 || troll.currentHealth <= 0) {
-    console.log(`💀 Troll ${troll.id} DEFEATED! State: ${troll.state} -> dead`);
+  const shouldBeDefeated =
+    troll.totalDamageReceived >= 100 || troll.currentHealth <= 0;
+
+  if (shouldBeDefeated) {
+    console.log(
+      `💀 Troll ${troll.id} DEFEATED! Condition met: totalDamage(${troll.totalDamageReceived}) >= 100 OR currentHealth(${troll.currentHealth}) <= 0`
+    );
+    console.log(`💀 Setting state from "${troll.state}" to "dead"`);
     troll.state = "dead";
+    console.log(`💀 Calling onVictory callback for Troll ${troll.id}`);
     onVictory();
+    console.log(`💀 onVictory callback completed for Troll ${troll.id}`);
+  } else {
+    console.log(
+      `🪨 Troll ${troll.id} still alive. Need ${
+        100 - troll.totalDamageReceived
+      } more total damage or ${troll.currentHealth} more current damage.`
+    );
   }
 
-  // Visual damage feedback
-  const originalColor = troll.color;
-  troll.color = "#ff0000";
-  const timeout = setTimeout(() => {
-    if (troll.state !== "dead") {
-      troll.color = originalColor;
-    }
-  }, 300);
-  activeTimeouts.push(timeout);
+  // Visual damage feedback using base function
+  applyDamageVisualFeedback(troll, activeTimeouts);
 }
 
 // Troll AI functions
@@ -108,14 +85,9 @@ export function updateTrollAI(
 
   const now = Date.now();
 
-  // Handle status effects
-  if (troll.state === "stunned" && now >= troll.stunEndTime) {
-    troll.state = "idle";
-  }
-
-  if (troll.state === "levitating" && now >= troll.levitateEndTime) {
-    troll.state = "idle";
-  }
+  // Handle status effects using base functions
+  handleStunEffect(troll, now);
+  handleLevitateEffect(troll, now);
 
   // Handle chunk armor duration
   if (troll.hasChunkArmor && now >= troll.chunkArmorEndTime) {
@@ -186,6 +158,7 @@ function executeTrollSkill(
   } else if (troll.currentSkill === "chunkarmor") {
     troll.hasChunkArmor = true;
     troll.chunkArmorEndTime = Date.now() + 15000; // 15 seconds duration
+    console.log(`🛡️ Troll ${troll.id} activated chunk armor!`);
   } else if (troll.currentSkill === "stomp") {
     let damage = 40;
     if (player.isProtected) {
@@ -310,15 +283,7 @@ export function castSpellOnTroll(
 // Draw troll function
 export function drawTroll(troll: Troll, ctx: CanvasRenderingContext2D) {
   if (troll.state === "dead") {
-    // Draw dead troll
-    ctx.fillStyle = "#444444";
-    ctx.fillRect(troll.x, troll.y, troll.width, troll.height);
-
-    ctx.fillStyle = "#ffffff";
-    ctx.font = "30px Arial";
-    ctx.textAlign = "center";
-    ctx.fillText("💀", troll.x + troll.width / 2, troll.y - 10);
-    ctx.textAlign = "left";
+    drawDeadEnemy(troll, ctx);
     return;
   }
 
@@ -341,63 +306,17 @@ export function drawTroll(troll: Troll, ctx: CanvasRenderingContext2D) {
   ctx.fillRect(troll.x + 10, troll.y + troll.height, 15, 20); // left leg
   ctx.fillRect(troll.x + 35, troll.y + troll.height, 15, 20); // right leg
 
-  // Status indicators
-  if (troll.state === "casting") {
-    ctx.fillStyle = "#ffff00";
-    ctx.font = "20px Arial";
-    ctx.fillText("⚡", troll.x + troll.width / 2 - 10, troll.y - 15);
-  }
+  // Status indicators using base function
+  drawStatusIndicators(troll, ctx);
 
-  if (troll.state === "stunned") {
-    ctx.fillStyle = "#ffff00";
-    ctx.font = "20px Arial";
-    ctx.fillText("💫", troll.x + troll.width / 2 - 10, troll.y - 15);
-  }
-
-  if (troll.state === "levitating") {
-    ctx.fillStyle = "#00ffff";
-    ctx.font = "20px Arial";
-    ctx.fillText("🪶", troll.x + troll.width / 2 - 10, troll.y - 15);
-  }
-
+  // Chunk armor indicator
   if (troll.hasChunkArmor) {
     ctx.fillStyle = "#8B4513";
     ctx.font = "20px Arial";
     ctx.fillText("🛡️", troll.x + troll.width + 10, troll.y + 10);
   }
-
-  // Skill casting indicator with progress bar
-  if (troll.state === "casting") {
-    const progress =
-      (Date.now() - troll.skillCastStartTime) / troll.skillCastDuration;
-    const barWidth = 40;
-    const barHeight = 6;
-    const barX = troll.x + troll.width / 2 - barWidth / 2;
-    const barY = troll.y + troll.height + 5;
-
-    ctx.fillStyle = "#333333";
-    ctx.fillRect(barX, barY, barWidth, barHeight);
-
-    ctx.fillStyle = "#ffff00";
-    ctx.fillRect(barX, barY, barWidth * progress, barHeight);
-
-    // Show skill name being cast
-    ctx.fillStyle = "#ffff00";
-    ctx.font = "14px Arial";
-    ctx.textAlign = "center";
-    const skillDisplayName =
-      troll.currentSkill === "rockthrow"
-        ? "Rock Throw"
-        : troll.currentSkill === "chunkarmor"
-        ? "Chunk Armor"
-        : troll.currentSkill === "stomp"
-        ? "Stomp"
-        : troll.currentSkill;
-    ctx.fillText(
-      skillDisplayName,
-      troll.x + troll.width / 2,
-      troll.y + troll.height + 25
-    );
-    ctx.textAlign = "left";
-  }
 }
+
+// Re-export for backward compatibility
+export type { Player };
+export { damagePlayer, protectPlayer };
