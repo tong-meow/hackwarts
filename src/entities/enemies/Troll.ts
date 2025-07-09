@@ -3,12 +3,11 @@ import {
   BaseEnemyState,
   createBaseEnemy,
   handleStunEffect,
-  handleLevitateEffect,
   applyDamageVisualFeedback,
-  drawStatusIndicators,
   drawDeadEnemy,
 } from "../BaseEnemy.js";
 import { Player, damagePlayer, protectPlayer } from "../Player.js";
+import { increaseMagic } from "../Player.js";
 
 // Troll-specific interface extending base enemy
 export interface Troll extends BaseEnemyState {
@@ -17,11 +16,17 @@ export interface Troll extends BaseEnemyState {
   hasChunkArmor: boolean;
   chunkArmorEndTime: number;
   isRockThrowReflected: boolean; // For Depulso counter
+
+  // Attack animation
+  isAttacking: boolean;
+  attackStartTime: number;
+  attackDuration: number;
+  attackOffset: number;
 }
 
 // Troll creation and management
 export function createTroll(id: number, x: number, y: number): Troll {
-  const baseEnemy = createBaseEnemy(id, x, y, 60, 80, "#654321", 100);
+  const baseEnemy = createBaseEnemy(id, x, y, 600, 800, "#654321", 100);
   return {
     ...baseEnemy,
     type: "troll",
@@ -29,6 +34,10 @@ export function createTroll(id: number, x: number, y: number): Troll {
     hasChunkArmor: false,
     chunkArmorEndTime: 0,
     isRockThrowReflected: false,
+    isAttacking: false,
+    attackStartTime: 0,
+    attackDuration: 200, // 200ms attack animation
+    attackOffset: 0,
   };
 }
 
@@ -79,15 +88,42 @@ export function updateTrollAI(
   activeTimeouts: NodeJS.Timeout[],
   gameOver: boolean,
   gameWon: boolean,
-  onGameOver: () => void
+  onGameOver: () => void,
+  onShakeTrigger?: () => void
 ) {
   if (troll.state === "dead" || gameOver || gameWon) return;
 
   const now = Date.now();
 
+  // Add subtle breathing animation (gentle movement)
+  const breathingSpeed = 0.002; // Slow breathing
+  const breathingAmplitude = 3; // Small movement range (3 pixels)
+  const breathingOffset = Math.sin(now * breathingSpeed) * breathingAmplitude;
+
+  // Apply breathing animation to y position (up and down movement)
+  troll.y = troll.originalY + breathingOffset;
+
+  // Handle attack animation
+  if (troll.isAttacking) {
+    const attackElapsed = now - troll.attackStartTime;
+    const attackProgress = Math.min(attackElapsed / troll.attackDuration, 1.0);
+
+    if (attackProgress < 0.5) {
+      // First half: move left
+      troll.attackOffset = -100 * (attackProgress * 2); // Move up to 100px left
+    } else {
+      // Second half: move back
+      troll.attackOffset = -100 * (2 - attackProgress * 2); // Move back to original position
+    }
+
+    if (attackProgress >= 1.0) {
+      troll.isAttacking = false;
+      troll.attackOffset = 0;
+    }
+  }
+
   // Handle status effects using base functions
   handleStunEffect(troll, now);
-  handleLevitateEffect(troll, now);
 
   // Handle chunk armor duration
   if (troll.hasChunkArmor && now >= troll.chunkArmorEndTime) {
@@ -98,7 +134,13 @@ export function updateTrollAI(
   if (troll.state === "casting") {
     if (now >= troll.skillCastStartTime + troll.skillCastDuration) {
       // Execute the skill
-      executeTrollSkill(troll, player, activeTimeouts, onGameOver);
+      executeTrollSkill(
+        troll,
+        player,
+        activeTimeouts,
+        onGameOver,
+        onShakeTrigger
+      );
       troll.state = "idle";
       troll.nextSkillTime = now + Math.random() * 4000 + 3000; // 3-7 seconds
     }
@@ -137,15 +179,20 @@ function executeTrollSkill(
   troll: Troll,
   player: Player,
   activeTimeouts: NodeJS.Timeout[],
-  onGameOver: () => void
+  onGameOver: () => void,
+  onShakeTrigger?: () => void
 ) {
   if (troll.currentSkill === "rockthrow") {
+    // Trigger attack animation for rock throw
+    troll.isAttacking = true;
+    troll.attackStartTime = Date.now();
+
     if (!troll.isRockThrowReflected) {
       // Normal rock throw damage
       if (player.isProtected) {
         console.log(`🛡️ Rock blocked by Protego!`);
       } else {
-        damagePlayer(player, 30, activeTimeouts, onGameOver);
+        damagePlayer(player, 30, activeTimeouts, onGameOver, onShakeTrigger);
         console.log(`🪨 Rock hit player for 30 damage!`);
       }
     } else {
@@ -164,7 +211,7 @@ function executeTrollSkill(
     if (player.isProtected) {
       damage = 20; // Reduced but not fully blocked
     }
-    damagePlayer(player, damage, activeTimeouts, onGameOver);
+    damagePlayer(player, damage, activeTimeouts, onGameOver, onShakeTrigger);
     console.log(`🦶 Stomp shockwave hits player for ${damage} damage!`);
   }
 }
@@ -191,35 +238,17 @@ export function castSpellOnTroll(
         troll.stunEndTime = Date.now() + 2000;
         troll.currentSkill = "";
         console.log(`✨ Troll ${troll.id} spell interrupted and stunned!`);
-      } else if (troll.state === "levitating") {
-        // Knockback, stun
-        troll.state = "stunned";
-        troll.stunEndTime = Date.now() + 2000;
-        console.log(`✨ Troll ${troll.id} knocked back from air and stunned!`);
+        increaseMagic(player, 10); // Increase magic for successful stun
       } else {
         // Just knockback
         console.log(`✨ Troll ${troll.id} knocked back!`);
-      }
-      break;
-
-    case "levicorpus":
-      if (troll.hasChunkArmor) {
-        console.log(`🛡️ Chunk armor blocks Levicorpus!`);
-      } else if (troll.state === "levitating") {
-        console.log(`🪶 Troll ${troll.id} already levitating!`);
-      } else {
-        if (troll.state === "casting") {
-          troll.currentSkill = "";
-          console.log(`🪶 Troll ${troll.id} spell interrupted!`);
-        }
-        troll.state = "levitating";
-        troll.levitateEndTime = Date.now() + 2000;
-        console.log(`🪶 Troll ${troll.id} levitated!`);
+        increaseMagic(player, 10); // Increase magic for successful knockback
       }
       break;
 
     case "protego":
       protectPlayer(player, 5000);
+      // No magic increase for protective spells
       break;
 
     case "glacius":
@@ -230,6 +259,7 @@ export function castSpellOnTroll(
           console.log("🎉 VICTORY! Troll defeated!");
         });
         console.log(`❄️ Troll ${troll.id} frozen for 10 damage!`);
+        increaseMagic(player, 10); // Increase magic for successful damage
       }
       break;
 
@@ -238,11 +268,13 @@ export function castSpellOnTroll(
         // Cancel chunk armor, no damage
         troll.hasChunkArmor = false;
         console.log(`🔥 Incendio burns away chunk armor!`);
+        increaseMagic(player, 10); // Increase magic for successful armor removal
       } else {
         damageTroll(troll, 10, activeTimeouts, () => {
           console.log("🎉 VICTORY! Troll defeated!");
         });
         console.log(`🔥 Troll ${troll.id} burned for 10 damage!`);
+        increaseMagic(player, 10); // Increase magic for successful damage
       }
       break;
 
@@ -251,11 +283,13 @@ export function castSpellOnTroll(
         // Cancel chunk armor, no damage
         troll.hasChunkArmor = false;
         console.log(`💥 Bombarda explodes chunk armor!`);
+        increaseMagic(player, 10); // Increase magic for successful armor removal
       } else {
         damageTroll(troll, 20, activeTimeouts, () => {
           console.log("🎉 VICTORY! Troll defeated!");
         });
         console.log(`💥 Troll ${troll.id} exploded for 20 damage!`);
+        increaseMagic(player, 10); // Increase magic for successful damage
       }
       break;
 
@@ -269,13 +303,27 @@ export function castSpellOnTroll(
         // Reflect the rock throw
         troll.isRockThrowReflected = true;
         console.log(`🪨 Depulso will reflect the rock back to troll!`);
+        increaseMagic(player, 10); // Increase magic for successful reflection
       } else {
         const damage = Math.floor(20 * powerMultiplier);
         damageTroll(troll, damage, activeTimeouts, () => {
           console.log("🎉 VICTORY! Troll defeated!");
         });
         console.log(`🪨 Troll ${troll.id} hit by force for ${damage} damage!`);
+        increaseMagic(player, 10); // Increase magic for successful damage
       }
+      break;
+
+    case "avada kedavra":
+      troll.state = "dead";
+      troll.currentHealth = 0;
+      troll.totalDamageReceived = troll.maxHealth; // Ensure defeat condition is met
+      console.log(`💀 AVADA KEDAVRA! Troll ${troll.id} eliminated instantly!`);
+      // No magic increase for avada kedavra (it consumes all magic)
+      // Trigger victory callback
+      setTimeout(() => {
+        console.log("🎉 VICTORY! Troll defeated by ultimate spell!");
+      }, 100);
       break;
   }
 }
@@ -287,33 +335,44 @@ export function drawTroll(troll: Troll, ctx: CanvasRenderingContext2D) {
     return;
   }
 
-  // Main body
-  ctx.fillStyle = troll.color;
-  ctx.fillRect(troll.x, troll.y, troll.width, troll.height);
+  // Create troll image if it doesn't exist
+  if (!(window as any).trollImage) {
+    (window as any).trollImage = new Image();
+    (window as any).trollImage.src = "/assets/enemies/troll_normal.png";
+  }
 
-  // Simple face
-  ctx.fillStyle = "#ffffff";
-  ctx.fillRect(troll.x + 10, troll.y + 15, 8, 8); // left eye
-  ctx.fillRect(troll.x + 30, troll.y + 15, 8, 8); // right eye
-  ctx.fillRect(troll.x + 15, troll.y + 35, 20, 6); // mouth
+  const trollImage = (window as any).trollImage;
 
-  // Arms
-  ctx.fillStyle = troll.color;
-  ctx.fillRect(troll.x - 15, troll.y + 20, 15, 25); // left arm
-  ctx.fillRect(troll.x + troll.width, troll.y + 20, 15, 25); // right arm
+  // Draw the troll image with proper aspect ratio
+  if (trollImage.complete) {
+    // Calculate aspect ratio-preserving dimensions
+    const originalAspectRatio = 600 / 800; // Updated troll dimensions
+    const targetWidth = troll.width;
+    const targetHeight = troll.height;
 
-  // Legs
-  ctx.fillRect(troll.x + 10, troll.y + troll.height, 15, 20); // left leg
-  ctx.fillRect(troll.x + 35, troll.y + troll.height, 15, 20); // right leg
+    // Calculate the largest size that fits within the target area while maintaining aspect ratio
+    let drawWidth, drawHeight;
+    if (targetWidth / targetHeight > originalAspectRatio) {
+      // Target is wider than original aspect ratio
+      drawHeight = targetHeight;
+      drawWidth = targetHeight * originalAspectRatio;
+    } else {
+      // Target is taller than original aspect ratio
+      drawWidth = targetWidth;
+      drawHeight = targetWidth / originalAspectRatio;
+    }
 
-  // Status indicators using base function
-  drawStatusIndicators(troll, ctx);
+    // Center the image within the target area
+    const offsetX = troll.x + (targetWidth - drawWidth) / 2;
+    const offsetY = troll.y + (targetHeight - drawHeight) / 2;
 
-  // Chunk armor indicator
-  if (troll.hasChunkArmor) {
-    ctx.fillStyle = "#8B4513";
-    ctx.font = "20px Arial";
-    ctx.fillText("🛡️", troll.x + troll.width + 10, troll.y + 10);
+    ctx.drawImage(
+      trollImage,
+      offsetX + troll.attackOffset,
+      offsetY,
+      drawWidth,
+      drawHeight
+    );
   }
 }
 

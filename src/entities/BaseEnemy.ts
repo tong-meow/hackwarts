@@ -15,13 +15,12 @@ export interface BaseEnemyState {
   originalColor: string;
 
   // AI states
-  state: "idle" | "casting" | "stunned" | "levitating" | "dead" | "shadowphase";
+  state: "idle" | "casting" | "stunned" | "dead" | "shadowphase";
   currentSkill: string;
   skillCastStartTime: number;
   skillCastDuration: number;
   nextSkillTime: number;
   stunEndTime: number;
-  levitateEndTime: number;
 }
 
 // Common enemy functions
@@ -53,19 +52,12 @@ export function createBaseEnemy(
     skillCastDuration: 0,
     nextSkillTime: Date.now() + Math.random() * 3000 + 2000,
     stunEndTime: 0,
-    levitateEndTime: 0,
   };
 }
 
 // Common status effect handling
 export function handleStunEffect(enemy: BaseEnemyState, now: number): void {
   if (enemy.state === "stunned" && now >= enemy.stunEndTime) {
-    enemy.state = "idle";
-  }
-}
-
-export function handleLevitateEffect(enemy: BaseEnemyState, now: number): void {
-  if (enemy.state === "levitating" && now >= enemy.levitateEndTime) {
     enemy.state = "idle";
   }
 }
@@ -101,26 +93,14 @@ export function drawStatusIndicators(
     ctx.font = "20px Arial";
     ctx.fillText("💫", enemy.x + enemy.width / 2 - 10, enemy.y - 15);
   }
-
-  if (enemy.state === "levitating") {
-    ctx.fillStyle = "#00ffff";
-    ctx.font = "20px Arial";
-    ctx.fillText("🪶", enemy.x + enemy.width / 2 - 10, enemy.y - 15);
-  }
 }
 
 // Common dead enemy drawing
 export function drawDeadEnemy(
-  enemy: BaseEnemyState,
-  ctx: CanvasRenderingContext2D,
-  skullSize: string = "30px"
-): void {
-  ctx.fillStyle = "#444444";
-  ctx.fillRect(enemy.x, enemy.y, enemy.width, enemy.height);
-
-  ctx.fillStyle = "#ffffff";
-  ctx.font = `${skullSize} Arial`;
-  ctx.textAlign = "center";
-  ctx.fillText("💀", enemy.x + enemy.width / 2, enemy.y - 10);
-  ctx.textAlign = "left";
+  _enemy: BaseEnemyState,
+  _ctx: CanvasRenderingContext2D,
+  _skullSize: string = "30px"
+) {
+  // Dead enemies are not drawn - they are simply removed from the game
+  // This function exists for consistency but doesn't render anything
 }

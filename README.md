@@ -65,7 +65,6 @@
 | Spell Name       | Icon | Effect             | Power Scaling      | Strategic Use                                |
 | ---------------- | ---- | ------------------ | ------------------ | -------------------------------------------- |
 | **Expelliarmus** | ✨   | Stun + Knockback   | Fixed              | Interrupt casting, enable Soul Sucker damage |
-| **Levicorpus**   | 🪶   | Levitate enemy     | Fixed              | Safe crowd control, interrupt spells         |
 | **Protego**      | 🛡️   | Block attacks (5s) | Fixed              | Defense, block status effects                |
 | **Glacius**      | ❄️   | Ice damage         | Fixed (10-30)      | Consistent damage across enemies             |
 | **Incendio**     | 🔥   | Fire damage        | Confidence (15-30) | Anti-armor, spider burn effect               |
@@ -110,8 +109,8 @@ Friends: "HOLY SHIT IT'S LISTENING!"
 ### Scenario 2: The Teaching Moment
 
 ```
-Player: "The spells are expelliarmus, levicorpus, protego..."
-Game: *EXPELLIARMUS* ✨ *LEVICORPUS* 🪶 *PROTEGO* 🛡️
+Player: "The spells are expelliarmus, protego..."
+Game: *EXPELLIARMUS* ✨ *PROTEGO* 🛡️
 Everyone: "IT'S CASTING EVERYTHING WE SAY!"
 ```
 
@@ -186,10 +185,26 @@ const damage = Math.floor(baseDamage * powerMultiplier);
 
 #### Enemy Status Effects
 
-- **💫 Stunned**: Vulnerable to all damage
-- **🪶 Levitating**: Interrupts casting, bonus damage
-- **🔥 On Fire**: Burns webs, delayed spider death
-- **🌑 Shadow Phase**: Semi-transparent, dodges all damage
+#### 💫 Stunned
+
+- **Duration**: 2-4 seconds (varies by enemy)
+- **Effect**: Cannot move or cast, vulnerable to damage
+- **Source**: Expelliarmus
+- **Special**: Only way to damage Soul Sucker
+
+#### 🔥 On Fire (Spider only)
+
+- **Duration**: 2 seconds
+- **Effect**: Burns webs, guaranteed death after fire expires
+- **Source**: Incendio
+- **Special**: Unique delayed kill effect
+
+#### 🌑 Shadow Phase (Soul Sucker only)
+
+- **Duration**: 1 second
+- **Effect**: Becomes semi-transparent, dodges all damage
+- **Source**: Automatic when taking damage while not stunned
+- **Counter**: Stun with Expelliarmus first
 
 ---
 
@@ -231,7 +246,6 @@ cooldownDuration = 2000; // 2 seconds
 // Enhanced spell matching with pronunciation variants
 fuzzyMatches = {
   expelliarmus: ["expeliarmus", "expelli armus", "spell armus"],
-  levicorpus: ["levi corpus", "levie corpus", "levy corpus"],
   protego: ["protego", "protago", "pro tego", "protect go"],
   glacius: ["glacius", "glacier", "glass us", "ice spell"],
   incendio: ["incendio", "incendeo", "in send io", "fire spell"],
@@ -239,100 +253,3 @@ fuzzyMatches = {
   depulso: ["depulso", "de pulso", "push spell", "force spell"],
 };
 ```
-
-### Enemy AI Systems
-
-```typescript
-// Progressive enemy complexity
-class Spider {
-  // Smart combo system: successful web → immediate venom
-  // Failed web → normal cooldown
-  comboLogic() {
-    /* web-venom synergy */
-  }
-}
-
-class Troll {
-  // Armor priority: 30% chance when armor down
-  // Mixed offense: rock throw vs stomp rotation
-  armorManagement() {
-    /* defensive priority */
-  }
-}
-
-class SoulSucker {
-  // Automatic shadow phase on damage spells
-  // Only vulnerable when stunned
-  dodgeSystem() {
-    /* stun-gated damage */
-  }
-}
-```
-
-### Performance Optimizations
-
-- **Efficient Speech Processing**: Only processes final results
-- **Smart Cooldowns**: Prevents spam without blocking natural conversation
-- **Auto-Recovery**: Restarts listening automatically
-- **Confidence Scaling**: Higher confidence = better performance
-
----
-
-## 🎯 The Revolutionary Difference
-
-### Traditional Voice Games
-
-- ❌ Push-to-talk required
-- ❌ Perfect pronunciation needed
-- ❌ Manual activation modes
-- ❌ Stop talking to play
-- ❌ Simple on/off spell effects
-
-### Hackwarts Always Listening Magic
-
-- ✅ **Always listening** - magic happens naturally
-- ✅ **Accidental casting** - demos become gameplay
-- ✅ **Confidence-based power** - clear speech = strong magic
-- ✅ **Social integration** - explaining IS playing
-- ✅ **Progressive strategy** - 3 enemies teach escalating complexity
-- ✅ **Viral moments** - unexpected magic creates shareable content
-
----
-
-## 🎮 Getting Started
-
-### Installation
-
-```bash
-git clone https://github.com/yourusername/hackwarts
-cd hackwarts
-npm install
-npm run dev
-```
-
-### Quick Start Guide
-
-1. **Grant microphone permission** when prompted
-2. **Practice spell names**: Start with "protego" and "expelliarmus"
-3. **Fight the spider**: Learn to interrupt webs and block venom
-4. **Master the troll**: Remove armor and reflect rock throws
-5. **Challenge soul sucker**: Perfect stun-damage timing cycles
-
-### Pro Tips
-
-- **Speak clearly and confidently** for maximum spell power
-- **Learn enemy patterns** to predict optimal spell timing
-- **Use Protego defensively** to block status effects
-- **Chain spells after stuns** for maximum damage windows
-
----
-
-## 🌟 The Magic Awaits
-
-**Hackwarts** isn't just a game - it's a glimpse into the future where natural conversation becomes magical interaction. Every word has power. Every explanation becomes enchantment. Every demo transforms into an unforgettable magical experience.
-
-**Speak the magic. Live the magic. Share the magic.** ✨🪄
-
----
-
-_Ready to cast your first spell? Clone the repository and let the magic begin!_

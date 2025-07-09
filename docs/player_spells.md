@@ -13,9 +13,6 @@
 | **Expelliarmus** | **Casting spell**                 | Interrupts cast, stuns briefly                             |
 |                  | **Idle / Not casting**            | Weak knockback, minor damage                               |
 |                  | **Stunned / Controlled**          | Bounces enemy away → breaks your control effect            |
-| **Levicorpus**   | **Casting spell**                 | Lifts enemy → cancels their cast + disables for 2s         |
-|                  | **Idle / Not casting**            | Suspends enemy in air, allowing safe follow-up attacks     |
-|                  | **Midair / Already lifted**       | Has no effect                                              |
 | **Protego**      | **Enemy attacking**               | Blocks incoming basic spell damage                         |
 |                  | **Enemy idle**                    | No effect                                                  |
 |                  | **Enemy charging special attack** | Blocks partially; some damage taken                        |
