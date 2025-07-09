@@ -56,12 +56,12 @@ export class VoiceRecognition {
   // Supported spells
   private spells: string[] = [
     "expelliarmus",
-    "levicorpus",
     "protego",
     "glacius",
     "incendio",
     "bombarda",
     "depulso",
+    "avada kedavra",
   ];
 
   private spellCooldowns = new Map<string, number>();
@@ -219,15 +219,6 @@ export class VoiceRecognition {
       "expeller armus": "expelliarmus",
       expelliarmus: "expelliarmus",
 
-      // Levicorpus variations
-      "levi corpus": "levicorpus",
-      "levie corpus": "levicorpus",
-      "levy corpus": "levicorpus",
-      "levi corpse": "levicorpus",
-      "levy corpse": "levicorpus",
-      levitation: "levicorpus",
-      levitate: "levicorpus",
-
       // Protego variations
       protago: "protego",
       "pro tego": "protego",
@@ -276,6 +267,17 @@ export class VoiceRecognition {
       force: "depulso",
       "knock back": "depulso",
       knockback: "depulso",
+
+      // Avada Kedavra variations
+      "avada kedavra": "avada kedavra",
+      "a vada kedavra": "avada kedavra",
+      "avada kadavra": "avada kedavra",
+      "avada cadavra": "avada kedavra",
+      "abada kedavra": "avada kedavra",
+      "avada ke davra": "avada kedavra",
+      "killing curse": "avada kedavra",
+      "death curse": "avada kedavra",
+      "ultimate spell": "avada kedavra",
     };
 
     Object.entries(normalizations).forEach(([from, to]) => {
@@ -333,23 +335,6 @@ export class VoiceRecognition {
         "spell",
         "disarm",
         "weapon",
-      ],
-      levicorpus: [
-        "levi corpus",
-        "levie corpus",
-        "levy corpus",
-        "levi corpse",
-        "levy corpse",
-        "levitation",
-        "levitate",
-        "levi",
-        "levy",
-        "corpus",
-        "corpse",
-        "float",
-        "lift",
-        "rise",
-        "hover",
       ],
       protego: [
         "protago",
@@ -428,6 +413,26 @@ export class VoiceRecognition {
         "banish",
         "send away",
         "blow away",
+      ],
+      "avada kedavra": [
+        "avada kedavra",
+        "a vada kedavra",
+        "avada kadavra",
+        "avada cadavra",
+        "abada kedavra",
+        "avada ke davra",
+        "killing curse",
+        "death curse",
+        "ultimate spell",
+        "ultimate",
+        "avada",
+        "kedavra",
+        "killing",
+        "death",
+        "curse",
+        "eliminate",
+        "destroy",
+        "annihilate",
       ],
     };
 

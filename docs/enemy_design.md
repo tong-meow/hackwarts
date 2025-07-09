@@ -56,15 +56,10 @@
 
 ### Spell Interactions
 
-| Spell            | Idle State                | Casting State             | Levitating State               |
-| ---------------- | ------------------------- | ------------------------- | ------------------------------ |
-| **Expelliarmus** | Stun 2s                   | Cancel + Stun 2s          | Knockback + Stun 2s + 5 damage |
-| **Levicorpus**   | Levitate 2s               | Interrupt + Levitate 2s   | Already levitating             |
-| **Protego**      | Player protected 5s       | Player protected 5s       | Player protected 5s            |
-| **Glacius**      | 10 ice damage             | 10 ice damage             | 10 ice damage                  |
-| **Incendio**     | 15-30 damage + fire death | 15-30 damage + fire death | 15-30 damage + fire death      |
-| **Bombarda**     | 15 damage                 | 15 damage                 | 15 damage                      |
-| **Depulso**      | 10 damage                 | 10 damage                 | 10 damage                      |
+| Spell            | Idle State          | Casting State       | Stunned State       |
+| ---------------- | ------------------- | ------------------- | ------------------- |
+| **Expelliarmus** | Knockback + stun 2s | Interrupt + Stun 2s | Stun 2s + 5 damage  |
+| **Protego**      | Player protected 5s | Player protected 5s | Player protected 5s |
 
 ---
 
@@ -118,7 +113,6 @@
 | Spell            | No Armor                                         | With Chunk Armor          |
 | ---------------- | ------------------------------------------------ | ------------------------- |
 | **Expelliarmus** | Interrupt/Stun if casting, otherwise knockback   | Blocked completely        |
-| **Levicorpus**   | Levitate 2s, interrupt casting                   | Blocked completely        |
 | **Protego**      | Player protected 5s                              | Player protected 5s       |
 | **Glacius**      | 10 ice damage                                    | Blocked completely        |
 | **Incendio**     | 10 fire damage                                   | Destroys armor, no damage |
@@ -171,7 +165,6 @@
 | Spell            | Idle/Shadow Phase        | Stunned State         | Casting State       |
 | ---------------- | ------------------------ | --------------------- | ------------------- |
 | **Expelliarmus** | Stun 4s (enables damage) | N/A (already stunned) | Cancel + Stun 4s    |
-| **Levicorpus**   | No effect                | No effect             | No effect           |
 | **Protego**      | Player protected 5s      | Player protected 5s   | Player protected 5s |
 | **Glacius**      | Shadow Phase dodge       | 30 ice damage         | Shadow Phase dodge  |
 | **Incendio**     | Shadow Phase dodge       | 30 fire damage        | Shadow Phase dodge  |
@@ -187,7 +180,7 @@
 1. **Interrupt Webs**: Use Expelliarmus during 5s web cast
 2. **Avoid Venom**: Use Protego or interrupt before venom lands
 3. **Burn Everything**: Incendio destroys webs and kills spider
-4. **Levitate Safely**: Levicorpus interrupts all casting
+4. **Safe Control**: Stay defensive with Protection timing
 
 ### Troll Strategy
 
@@ -211,10 +204,10 @@
 
 ```typescript
 // Common enemy states
-state: "idle" | "casting" | "stunned" | "levitating" | "dead";
+state: "idle" | "casting" | "stunned" | "dead";
 
 // Spider-specific
-state: "idle" | "casting" | "stunned" | "levitating" | "dead";
+state: "idle" | "casting" | "stunned" | "dead";
 isOnFire: boolean;
 canCastWeb: boolean;
 canCastVenom: boolean;
@@ -249,15 +242,17 @@ totalDamageReceived: number;
 
 - **Color**: Dark brown (#8B4513)
 - **Size**: Small (30x30)
-- **Effects**: Fire 🔥, Web 🕸️, Stun 💫, Levitate 🪶
-- **Death**: Fire burn effect with 2s delay
+- **Effects**: Fire 🔥, Web 🕸️, Stun 💫
+- **Animation**: Attack lunge forward during skill execution
+- **Breathing**: Subtle up-down movement for liveliness
 
 ### Troll
 
-- **Color**: Brown (#654321)
-- **Size**: Large (60x80)
-- **Effects**: Armor 🛡️, Stun 💫, Levitate 🪶, Casting ⚡
-- **Features**: Arms, legs, detailed face
+- **Size**: Large (600x800px) imposing presence
+- **Color**: Brown/earth tones (#654321)
+- **Effects**: Armor 🛡️, Stun 💫, Casting ⚡
+- **Animation**: Forward-back attack movement during skills
+- **Breathing**: Subtle movement pattern
 
 ### Soul Sucker
 

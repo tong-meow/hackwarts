@@ -3,11 +3,11 @@ import {
   BaseEnemyState,
   createBaseEnemy,
   handleStunEffect,
-  handleLevitateEffect,
   applyDamageVisualFeedback,
   drawDeadEnemy,
 } from "../BaseEnemy.js";
 import { Player, damagePlayer, protectPlayer } from "../Player.js";
+import { increaseMagic } from "../Player.js";
 
 // Troll-specific interface extending base enemy
 export interface Troll extends BaseEnemyState {
@@ -88,7 +88,8 @@ export function updateTrollAI(
   activeTimeouts: NodeJS.Timeout[],
   gameOver: boolean,
   gameWon: boolean,
-  onGameOver: () => void
+  onGameOver: () => void,
+  onShakeTrigger?: () => void
 ) {
   if (troll.state === "dead" || gameOver || gameWon) return;
 
@@ -123,7 +124,6 @@ export function updateTrollAI(
 
   // Handle status effects using base functions
   handleStunEffect(troll, now);
-  handleLevitateEffect(troll, now);
 
   // Handle chunk armor duration
   if (troll.hasChunkArmor && now >= troll.chunkArmorEndTime) {
@@ -134,7 +134,13 @@ export function updateTrollAI(
   if (troll.state === "casting") {
     if (now >= troll.skillCastStartTime + troll.skillCastDuration) {
       // Execute the skill
-      executeTrollSkill(troll, player, activeTimeouts, onGameOver);
+      executeTrollSkill(
+        troll,
+        player,
+        activeTimeouts,
+        onGameOver,
+        onShakeTrigger
+      );
       troll.state = "idle";
       troll.nextSkillTime = now + Math.random() * 4000 + 3000; // 3-7 seconds
     }
@@ -173,7 +179,8 @@ function executeTrollSkill(
   troll: Troll,
   player: Player,
   activeTimeouts: NodeJS.Timeout[],
-  onGameOver: () => void
+  onGameOver: () => void,
+  onShakeTrigger?: () => void
 ) {
   if (troll.currentSkill === "rockthrow") {
     // Trigger attack animation for rock throw
@@ -185,7 +192,7 @@ function executeTrollSkill(
       if (player.isProtected) {
         console.log(`🛡️ Rock blocked by Protego!`);
       } else {
-        damagePlayer(player, 30, activeTimeouts, onGameOver);
+        damagePlayer(player, 30, activeTimeouts, onGameOver, onShakeTrigger);
         console.log(`🪨 Rock hit player for 30 damage!`);
       }
     } else {
@@ -204,7 +211,7 @@ function executeTrollSkill(
     if (player.isProtected) {
       damage = 20; // Reduced but not fully blocked
     }
-    damagePlayer(player, damage, activeTimeouts, onGameOver);
+    damagePlayer(player, damage, activeTimeouts, onGameOver, onShakeTrigger);
     console.log(`🦶 Stomp shockwave hits player for ${damage} damage!`);
   }
 }
@@ -231,35 +238,17 @@ export function castSpellOnTroll(
         troll.stunEndTime = Date.now() + 2000;
         troll.currentSkill = "";
         console.log(`✨ Troll ${troll.id} spell interrupted and stunned!`);
-      } else if (troll.state === "levitating") {
-        // Knockback, stun
-        troll.state = "stunned";
-        troll.stunEndTime = Date.now() + 2000;
-        console.log(`✨ Troll ${troll.id} knocked back from air and stunned!`);
+        increaseMagic(player, 10); // Increase magic for successful stun
       } else {
         // Just knockback
         console.log(`✨ Troll ${troll.id} knocked back!`);
-      }
-      break;
-
-    case "levicorpus":
-      if (troll.hasChunkArmor) {
-        console.log(`🛡️ Chunk armor blocks Levicorpus!`);
-      } else if (troll.state === "levitating") {
-        console.log(`🪶 Troll ${troll.id} already levitating!`);
-      } else {
-        if (troll.state === "casting") {
-          troll.currentSkill = "";
-          console.log(`🪶 Troll ${troll.id} spell interrupted!`);
-        }
-        troll.state = "levitating";
-        troll.levitateEndTime = Date.now() + 2000;
-        console.log(`🪶 Troll ${troll.id} levitated!`);
+        increaseMagic(player, 10); // Increase magic for successful knockback
       }
       break;
 
     case "protego":
       protectPlayer(player, 5000);
+      // No magic increase for protective spells
       break;
 
     case "glacius":
@@ -270,6 +259,7 @@ export function castSpellOnTroll(
           console.log("🎉 VICTORY! Troll defeated!");
         });
         console.log(`❄️ Troll ${troll.id} frozen for 10 damage!`);
+        increaseMagic(player, 10); // Increase magic for successful damage
       }
       break;
 
@@ -278,11 +268,13 @@ export function castSpellOnTroll(
         // Cancel chunk armor, no damage
         troll.hasChunkArmor = false;
         console.log(`🔥 Incendio burns away chunk armor!`);
+        increaseMagic(player, 10); // Increase magic for successful armor removal
       } else {
         damageTroll(troll, 10, activeTimeouts, () => {
           console.log("🎉 VICTORY! Troll defeated!");
         });
         console.log(`🔥 Troll ${troll.id} burned for 10 damage!`);
+        increaseMagic(player, 10); // Increase magic for successful damage
       }
       break;
 
@@ -291,11 +283,13 @@ export function castSpellOnTroll(
         // Cancel chunk armor, no damage
         troll.hasChunkArmor = false;
         console.log(`💥 Bombarda explodes chunk armor!`);
+        increaseMagic(player, 10); // Increase magic for successful armor removal
       } else {
         damageTroll(troll, 20, activeTimeouts, () => {
           console.log("🎉 VICTORY! Troll defeated!");
         });
         console.log(`💥 Troll ${troll.id} exploded for 20 damage!`);
+        increaseMagic(player, 10); // Increase magic for successful damage
       }
       break;
 
@@ -309,13 +303,27 @@ export function castSpellOnTroll(
         // Reflect the rock throw
         troll.isRockThrowReflected = true;
         console.log(`🪨 Depulso will reflect the rock back to troll!`);
+        increaseMagic(player, 10); // Increase magic for successful reflection
       } else {
         const damage = Math.floor(20 * powerMultiplier);
         damageTroll(troll, damage, activeTimeouts, () => {
           console.log("🎉 VICTORY! Troll defeated!");
         });
         console.log(`🪨 Troll ${troll.id} hit by force for ${damage} damage!`);
+        increaseMagic(player, 10); // Increase magic for successful damage
       }
+      break;
+
+    case "avada kedavra":
+      troll.state = "dead";
+      troll.currentHealth = 0;
+      troll.totalDamageReceived = troll.maxHealth; // Ensure defeat condition is met
+      console.log(`💀 AVADA KEDAVRA! Troll ${troll.id} eliminated instantly!`);
+      // No magic increase for avada kedavra (it consumes all magic)
+      // Trigger victory callback
+      setTimeout(() => {
+        console.log("🎉 VICTORY! Troll defeated by ultimate spell!");
+      }, 100);
       break;
   }
 }
@@ -364,17 +372,6 @@ export function drawTroll(troll: Troll, ctx: CanvasRenderingContext2D) {
       offsetY,
       drawWidth,
       drawHeight
-    );
-  }
-
-  // Chunk armor indicator
-  if (troll.hasChunkArmor) {
-    ctx.fillStyle = "#8B4513";
-    ctx.font = "70px Arial"; // Adjusted font size for slightly smaller troll
-    ctx.fillText(
-      "🛡️",
-      troll.x + troll.width + 35 + troll.attackOffset,
-      troll.y + 35
     );
   }
 }

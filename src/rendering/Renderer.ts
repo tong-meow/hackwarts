@@ -8,9 +8,12 @@ export class Renderer {
   private canvas: HTMLCanvasElement;
   private ctx: CanvasRenderingContext2D;
 
-  // Spider web overlay system
+  // Spider web overlays
   private spiderWebElements: HTMLImageElement[] = [];
   private isShowingWebsForImmobilization: boolean = false;
+  private isWebFadingOut: boolean = false;
+  private webFadeOutStartTime: number = 0;
+  private webFadeOutDuration: number = 1000; // 1 second fade-out
 
   // Poisoned overlay system
   private poisonedElements: HTMLImageElement[] = [];
@@ -29,6 +32,64 @@ export class Renderer {
   // Shield overlay system
   private shieldElement: HTMLImageElement | null = null;
   private isShowingShield: boolean = false;
+
+  // Crack overlay system (for troll stomp)
+  private crackElements: HTMLImageElement[] = [];
+  private isShowingCracks: boolean = false;
+
+  // Mouth overlay system (for dementor soul drain)
+  private mouthElements: HTMLImageElement[] = [];
+  private isShowingMouths: boolean = false;
+
+  // Not allowed overlay system (for dementor voice silencing)
+  private notAllowedElement: HTMLImageElement | null = null;
+  private isShowingNotAllowed: boolean = false;
+
+  // Player protego shield overlay system
+  private playerShieldElement: HTMLImageElement | null = null;
+  private isShowingPlayerShield: boolean = false;
+
+  // Magic flow overlay system (for spell casting)
+  private magicFlowElement: HTMLImageElement | null = null;
+  private isShowingMagicFlow: boolean = false;
+  private magicFlowStartTime: number = 0;
+  private magicFlowDuration: number = 500; // 0.5 seconds
+
+  // Incendio overlay system (for incendio spell casting)
+  private incendioElement: HTMLImageElement | null = null;
+  private isShowingIncendio: boolean = false;
+  private incendioStartTime: number = 0;
+  private incendioDuration: number = 500; // 0.5 seconds
+
+  // Bombarda overlay system (for bombarda spell casting)
+  private bombardaElement: HTMLImageElement | null = null;
+  private isShowingBombarda: boolean = false;
+  private bombardaStartTime: number = 0;
+  private bombardaDuration: number = 1000; // 1 second
+
+  // Glacius overlay system (for glacius spell casting)
+  private glaciusElement: HTMLImageElement | null = null;
+  private isShowingGlacius: boolean = false;
+  private glaciusStartTime: number = 0;
+  private glaciusDuration: number = 1000; // 1 second
+
+  // Avada Kedavra overlay system (for avada kedavra spell casting)
+  private avadaElement: HTMLImageElement | null = null;
+  private avadaGlowElement: HTMLDivElement | null = null;
+  private isShowingAvada: boolean = false;
+  private avadaStartTime: number = 0;
+  private avadaDuration: number = 1800; // 1.8 seconds total (lightning 0.8s, glow continues for 1s more)
+
+  // Stunned overlay system (for stunned enemies)
+  private stunnedElement: HTMLImageElement | null = null;
+  private isShowingStunned: boolean = false;
+  private stunnedAnimationStartTime: number = 0;
+
+  // Player shake system (for damage feedback)
+  private isPlayerShaking: boolean = false;
+  private shakeStartTime: number = 0;
+  private shakeDuration: number = 500; // 500ms shake duration
+  private shakeIntensity: number = 8; // Maximum shake offset in pixels
 
   // Animated background system
   private backgroundElements: HTMLImageElement[] = [];
@@ -51,6 +112,16 @@ export class Renderer {
     this.initializeVenomOverlay();
     this.initializeStoneThrowingOverlay();
     this.initializeShieldOverlay();
+    this.initializeCrackOverlay();
+    this.initializeMouthOverlay();
+    this.initializeNotAllowedOverlay();
+    this.initializePlayerShieldOverlay();
+    this.initializeMagicFlowOverlay();
+    this.initializeIncendioOverlay();
+    this.initializeBombardaOverlay();
+    this.initializeGlaciusOverlay();
+    this.initializeAvadaOverlay();
+    this.initializeStunnedOverlay();
     this.initializeAnimatedBackgrounds();
     this.initializeSpiderName();
     this.initializeTrollName();
@@ -58,9 +129,13 @@ export class Renderer {
   }
 
   private initializeSpiderWebOverlays(): void {
-    for (let i = 1; i <= 6; i++) {
+    // Only use spider web images 1, 4, 5, 6 (skip 2 and 3)
+    const webNumbers = [1, 4, 5, 6];
+
+    for (let i = 0; i < webNumbers.length; i++) {
+      const webNumber = webNumbers[i];
       const webElement = new Image();
-      webElement.src = `/assets/visual_effect/spider_${i}.svg`;
+      webElement.src = `/assets/visual_effect/spider_${webNumber}.svg`;
       webElement.style.position = "absolute";
       webElement.style.top = "0";
       webElement.style.left = "0";
@@ -69,8 +144,8 @@ export class Renderer {
       webElement.style.pointerEvents = "none";
       webElement.style.display = "none";
 
-      // Set z-index: 1-3 below canvas (-1), 4-6 above canvas (1)
-      webElement.style.zIndex = i <= 3 ? "-1" : "1";
+      // Set z-index: 1 and 4 below canvas (-1), 5 and 6 above canvas (1)
+      webElement.style.zIndex = webNumber <= 4 ? "-1" : "1";
 
       this.spiderWebElements.push(webElement);
     }
@@ -150,6 +225,175 @@ export class Renderer {
     shieldElement.style.zIndex = "1"; // Above canvas
 
     this.shieldElement = shieldElement;
+  }
+
+  private initializeCrackOverlay(): void {
+    for (let i = 1; i <= 2; i++) {
+      const crackElement = new Image();
+      crackElement.src = `/assets/visual_effect/crack_${i}.svg`;
+      crackElement.style.position = "absolute";
+      crackElement.style.top = "0";
+      crackElement.style.left = "0";
+      crackElement.style.width = "100%";
+      crackElement.style.height = "100%";
+      crackElement.style.pointerEvents = "none";
+      crackElement.style.display = "none";
+      crackElement.style.zIndex = "1"; // Above canvas
+
+      this.crackElements.push(crackElement);
+    }
+  }
+
+  private initializeMouthOverlay(): void {
+    for (let i = 1; i <= 3; i++) {
+      const mouthElement = new Image();
+      mouthElement.src = `/assets/visual_effect/mouth_${i}.svg`;
+      mouthElement.style.position = "absolute";
+      mouthElement.style.top = "0";
+      mouthElement.style.left = "0";
+      mouthElement.style.width = "100%";
+      mouthElement.style.height = "100%";
+      mouthElement.style.pointerEvents = "none";
+      mouthElement.style.display = "none";
+      mouthElement.style.zIndex = "1"; // Above canvas
+
+      this.mouthElements.push(mouthElement);
+    }
+  }
+
+  private initializeNotAllowedOverlay(): void {
+    const notAllowedElement = new Image();
+    notAllowedElement.src = `/assets/visual_effect/not_allowed_1.svg`;
+    notAllowedElement.style.position = "absolute";
+    notAllowedElement.style.top = "0";
+    notAllowedElement.style.left = "0";
+    notAllowedElement.style.width = "100%";
+    notAllowedElement.style.height = "100%";
+    notAllowedElement.style.pointerEvents = "none";
+    notAllowedElement.style.display = "none";
+    notAllowedElement.style.zIndex = "1"; // Above canvas
+
+    this.notAllowedElement = notAllowedElement;
+  }
+
+  private initializePlayerShieldOverlay(): void {
+    const playerShieldElement = new Image();
+    playerShieldElement.src = `/assets/visual_effect/shield_3.svg`;
+    playerShieldElement.style.position = "absolute";
+    playerShieldElement.style.top = "0";
+    playerShieldElement.style.left = "0";
+    playerShieldElement.style.width = "100%";
+    playerShieldElement.style.height = "100%";
+    playerShieldElement.style.pointerEvents = "none";
+    playerShieldElement.style.display = "none";
+    playerShieldElement.style.zIndex = "-1"; // Behind canvas (behind player)
+
+    this.playerShieldElement = playerShieldElement;
+  }
+
+  private initializeMagicFlowOverlay(): void {
+    const magicFlowElement = new Image();
+    magicFlowElement.src = `/assets/visual_effect/magic_1.svg`;
+    magicFlowElement.style.position = "absolute";
+    magicFlowElement.style.top = "0";
+    magicFlowElement.style.left = "0";
+    magicFlowElement.style.width = "100%";
+    magicFlowElement.style.height = "100%";
+    magicFlowElement.style.pointerEvents = "none";
+    magicFlowElement.style.display = "none";
+    magicFlowElement.style.zIndex = "1"; // Above canvas
+
+    this.magicFlowElement = magicFlowElement;
+  }
+
+  private initializeIncendioOverlay(): void {
+    const incendioElement = new Image();
+    incendioElement.src = `/assets/visual_effect/incendio_4.svg`;
+    incendioElement.style.position = "absolute";
+    incendioElement.style.top = "0";
+    incendioElement.style.left = "0";
+    incendioElement.style.width = "100%";
+    incendioElement.style.height = "100%";
+    incendioElement.style.pointerEvents = "none";
+    incendioElement.style.display = "none";
+    incendioElement.style.zIndex = "1"; // Above canvas
+
+    this.incendioElement = incendioElement;
+  }
+
+  private initializeBombardaOverlay(): void {
+    const bombardaElement = new Image();
+    bombardaElement.src = `/assets/visual_effect/bombada_1.svg`;
+    bombardaElement.style.position = "absolute";
+    bombardaElement.style.top = "0";
+    bombardaElement.style.left = "0";
+    bombardaElement.style.width = "100%";
+    bombardaElement.style.height = "100%";
+    bombardaElement.style.pointerEvents = "none";
+    bombardaElement.style.display = "none";
+    bombardaElement.style.zIndex = "1"; // Above canvas
+
+    this.bombardaElement = bombardaElement;
+  }
+
+  private initializeGlaciusOverlay(): void {
+    const glaciusElement = new Image();
+    glaciusElement.src = `/assets/visual_effect/glaciar_1.svg`;
+    glaciusElement.style.position = "absolute";
+    glaciusElement.style.top = "0";
+    glaciusElement.style.left = "0";
+    glaciusElement.style.width = "100%";
+    glaciusElement.style.height = "100%";
+    glaciusElement.style.pointerEvents = "none";
+    glaciusElement.style.display = "none";
+    glaciusElement.style.zIndex = "1"; // Above canvas
+
+    this.glaciusElement = glaciusElement;
+  }
+
+  private initializeAvadaOverlay(): void {
+    const avadaElement = new Image();
+    avadaElement.src = `/assets/visual_effect/avada_1.svg`;
+    avadaElement.style.position = "absolute";
+    avadaElement.style.top = "0";
+    avadaElement.style.left = "0";
+    avadaElement.style.width = "100%";
+    avadaElement.style.height = "100%";
+    avadaElement.style.pointerEvents = "none";
+    avadaElement.style.display = "none";
+    avadaElement.style.zIndex = "1"; // Above canvas
+
+    this.avadaElement = avadaElement;
+
+    // Create green glow overlay for screen effect
+    const avadaGlowElement = document.createElement("div");
+    avadaGlowElement.style.position = "absolute";
+    avadaGlowElement.style.top = "0";
+    avadaGlowElement.style.left = "0";
+    avadaGlowElement.style.width = "100%";
+    avadaGlowElement.style.height = "100%";
+    avadaGlowElement.style.backgroundColor = "rgba(0, 255, 0, 0.3)"; // Green glow
+    avadaGlowElement.style.pointerEvents = "none";
+    avadaGlowElement.style.display = "none";
+    avadaGlowElement.style.zIndex = "0"; // Below the lightning but above canvas
+    avadaGlowElement.style.boxShadow = "inset 0 0 100px rgba(0, 255, 0, 0.5)"; // Inner glow effect
+
+    this.avadaGlowElement = avadaGlowElement;
+  }
+
+  private initializeStunnedOverlay(): void {
+    const stunnedElement = new Image();
+    stunnedElement.src = `/assets/visual_effect/stunned_1.svg`;
+    stunnedElement.style.position = "absolute";
+    stunnedElement.style.top = "0";
+    stunnedElement.style.left = "0";
+    stunnedElement.style.width = "100%";
+    stunnedElement.style.height = "100%";
+    stunnedElement.style.pointerEvents = "none";
+    stunnedElement.style.display = "none";
+    stunnedElement.style.zIndex = "1"; // Above canvas
+
+    this.stunnedElement = stunnedElement;
   }
 
   private initializeAnimatedBackgrounds(): void {
@@ -300,18 +544,40 @@ export class Renderer {
   }
 
   public updateSpiderWebOverlays(spider: Spider | null, player: Player): void {
+    const now = Date.now();
+
     // If spider is dead or null, always hide webs immediately
     if (!spider || spider.state === "dead") {
       if (this.isShowingWebsForImmobilization) {
         this.hideSpiderWebOverlays();
         this.isShowingWebsForImmobilization = false;
+        this.isWebFadingOut = false;
+      }
+      return;
+    }
+
+    // Handle fade-out animation
+    if (this.isWebFadingOut) {
+      const fadeElapsed = now - this.webFadeOutStartTime;
+      const fadeProgress = fadeElapsed / this.webFadeOutDuration;
+
+      if (fadeProgress >= 1.0) {
+        // Fade-out complete, fully hide webs
+        this.hideSpiderWebOverlays();
+        this.isShowingWebsForImmobilization = false;
+        this.isWebFadingOut = false;
+      } else {
+        // Apply fade-out opacity
+        const opacity = 1.0 - fadeProgress;
+        for (const webElement of this.spiderWebElements) {
+          webElement.style.opacity = opacity.toString();
+        }
       }
       return;
     }
 
     // Spider is alive, check if it's casting web
     if (spider.state === "casting" && spider.currentSkill === "web") {
-      const now = Date.now();
       const elapsedTime = now - spider.skillCastStartTime;
       const webIndex = Math.floor(elapsedTime / 500); // Show next web every 500ms
 
@@ -324,6 +590,7 @@ export class Renderer {
             document.body.appendChild(webElement);
           }
           webElement.style.display = "block";
+          webElement.style.opacity = "1"; // Ensure full opacity during casting
         } else {
           webElement.style.display = "none";
         }
@@ -339,10 +606,11 @@ export class Renderer {
         this.isShowingWebsForImmobilization = true;
       }
     } else {
-      // Player is not trapped by spider web - hide webs
-      if (this.isShowingWebsForImmobilization) {
-        this.hideSpiderWebOverlays();
-        this.isShowingWebsForImmobilization = false;
+      // Player is not trapped by spider web - start fade-out
+      if (this.isShowingWebsForImmobilization && !this.isWebFadingOut) {
+        this.isWebFadingOut = true;
+        this.webFadeOutStartTime = now;
+        // Keep showing webs but start fading them out
       }
     }
   }
@@ -352,10 +620,12 @@ export class Renderer {
       // Show all webs and let updateSpiderWebOverlays handle keeping them visible while player is trapped
       this.showAllSpiderWebs();
       this.isShowingWebsForImmobilization = true;
+      this.isWebFadingOut = false; // Reset fade-out state
     } else {
       // Hide immediately if cast failed or was canceled
       this.hideSpiderWebOverlays();
       this.isShowingWebsForImmobilization = false;
+      this.isWebFadingOut = false; // Reset fade-out state
     }
   }
 
@@ -365,14 +635,17 @@ export class Renderer {
         document.body.appendChild(webElement);
       }
       webElement.style.display = "block";
+      webElement.style.opacity = "1"; // Reset opacity to full
     }
   }
 
   public hideSpiderWebOverlays(): void {
     for (const webElement of this.spiderWebElements) {
       webElement.style.display = "none";
+      webElement.style.opacity = "1"; // Reset opacity for next time
     }
     this.isShowingWebsForImmobilization = false;
+    this.isWebFadingOut = false; // Reset fade-out state
   }
 
   public updatePoisonedOverlays(player: Player): void {
@@ -574,13 +847,6 @@ export class Renderer {
         stoneElement.style.transform = `translate(${animationOffset.x}px, ${animationOffset.y}px)`;
       }
     }
-
-    // Apply blinking animation to the eye
-    if (this.eyeElement) {
-      const blinkSpeed = 500; // Blink every 500ms
-      const isBlinkCycle = Math.floor(elapsedTime / blinkSpeed) % 2 === 0;
-      this.eyeElement.style.display = isBlinkCycle ? "block" : "none";
-    }
   }
 
   private getStoneFloatingOffset(
@@ -622,22 +888,12 @@ export class Renderer {
       stoneElement.style.display = "block";
       stoneElement.style.transform = "translate(0px, 0px)"; // Reset transform
     }
-
-    // Add eye element to DOM
-    if (this.eyeElement && !document.body.contains(this.eyeElement)) {
-      document.body.appendChild(this.eyeElement);
-    }
   }
 
   public hideStoneThrowingOverlay(): void {
     for (const stoneElement of this.stoneElements) {
       stoneElement.style.display = "none";
       stoneElement.style.transform = "translate(0px, 0px)"; // Reset transform
-    }
-
-    // Hide eye element
-    if (this.eyeElement) {
-      this.eyeElement.style.display = "none";
     }
 
     this.isShowingStoneThrowing = false;
@@ -704,6 +960,757 @@ export class Renderer {
       this.shieldElement.style.transform = "translate(0px, 0px)"; // Reset transform
     }
     this.isShowingShield = false;
+  }
+
+  public updateCrackOverlay(troll: Troll | null): void {
+    if (!troll || troll.state !== "casting" || troll.currentSkill !== "stomp") {
+      if (this.isShowingCracks) {
+        this.hideCrackOverlay();
+      }
+      return;
+    }
+
+    const now = Date.now();
+    const elapsedTime = now - troll.skillCastStartTime;
+    const totalDuration = troll.skillCastDuration;
+    const progress = Math.min(elapsedTime / totalDuration, 1.0);
+
+    if (!this.isShowingCracks) {
+      this.showCrackOverlay();
+      this.isShowingCracks = true;
+    }
+
+    // First half: reveal crack_1 from right to left
+    // Second half: reveal crack_2 from right to left
+    const crack1Element = this.crackElements[0];
+    const crack2Element = this.crackElements[1];
+
+    if (crack1Element) {
+      if (progress <= 0.5) {
+        // First half: gradually reveal crack_1
+        crack1Element.style.display = "block";
+        const crack1Progress = progress * 2; // 0 to 1 for first half
+        const revealPercent = crack1Progress * 100;
+        // Clip from right: start with 100% clipped from left, gradually reduce
+        crack1Element.style.clipPath = `inset(0 0 0 ${100 - revealPercent}%)`;
+      } else {
+        // Second half: crack_1 fully revealed
+        crack1Element.style.display = "block";
+        crack1Element.style.clipPath = `inset(0 0 0 0%)`;
+      }
+    }
+
+    if (crack2Element) {
+      if (progress <= 0.5) {
+        // First half: crack_2 hidden
+        crack2Element.style.display = "none";
+      } else {
+        // Second half: gradually reveal crack_2
+        crack2Element.style.display = "block";
+        const crack2Progress = (progress - 0.5) * 2; // 0 to 1 for second half
+        const revealPercent = crack2Progress * 100;
+        // Clip from right: start with 100% clipped from left, gradually reduce
+        crack2Element.style.clipPath = `inset(0 0 0 ${100 - revealPercent}%)`;
+      }
+    }
+  }
+
+  private showCrackOverlay(): void {
+    for (const crackElement of this.crackElements) {
+      if (!document.body.contains(crackElement)) {
+        document.body.appendChild(crackElement);
+      }
+      // Reset clipping
+      crackElement.style.clipPath = "inset(0 0 0 100%)"; // Start fully clipped
+    }
+  }
+
+  public hideCrackOverlay(): void {
+    for (const crackElement of this.crackElements) {
+      crackElement.style.display = "none";
+      crackElement.style.clipPath = "none"; // Reset clipping
+    }
+    this.isShowingCracks = false;
+  }
+
+  public updateMouthOverlay(dementor: Dementor | null, player: Player): void {
+    // Check if dementor is dead or not casting soul drain
+    if (
+      !dementor ||
+      dementor.state === "dead" ||
+      (dementor.state !== "casting" && !player.isImmobilized)
+    ) {
+      if (this.isShowingMouths) {
+        this.hideMouthOverlay();
+      }
+      return;
+    }
+
+    const now = Date.now();
+
+    // During casting phase: show mouths one by one
+    if (dementor.state === "casting" && dementor.currentSkill === "souldrain") {
+      const elapsedTime = now - dementor.skillCastStartTime;
+      const mouthIndex = Math.floor(elapsedTime / 1333); // Show each mouth for ~1.33 seconds (4000ms / 3 mouths)
+
+      if (!this.isShowingMouths) {
+        this.showMouthOverlay();
+        this.isShowingMouths = true;
+      }
+
+      // Show mouths progressively during casting
+      for (let i = 0; i < this.mouthElements.length; i++) {
+        const mouthElement = this.mouthElements[i];
+        if (i <= mouthIndex) {
+          mouthElement.style.display = "block";
+        } else {
+          mouthElement.style.display = "none";
+        }
+      }
+    }
+    // After successful cast: animate mouths while player is immobilized
+    else if (player.isImmobilized && Date.now() < player.immobilizedEndTime) {
+      if (!this.isShowingMouths) {
+        this.showMouthOverlay();
+        this.isShowingMouths = true;
+      }
+
+      // Frame-by-frame animation while debuff is active
+      const frameTime = Math.floor(Date.now() / 300); // Change frame every 300ms
+      const currentFrame = frameTime % 3; // Cycle through 3 frames
+
+      for (let i = 0; i < this.mouthElements.length; i++) {
+        const mouthElement = this.mouthElements[i];
+        mouthElement.style.display = i === currentFrame ? "block" : "none";
+      }
+    }
+    // Debuff ended or casting interrupted: hide mouths
+    else {
+      if (this.isShowingMouths) {
+        this.hideMouthOverlay();
+      }
+    }
+  }
+
+  private showMouthOverlay(): void {
+    for (const mouthElement of this.mouthElements) {
+      if (!document.body.contains(mouthElement)) {
+        document.body.appendChild(mouthElement);
+      }
+    }
+  }
+
+  public hideMouthOverlay(): void {
+    for (const mouthElement of this.mouthElements) {
+      mouthElement.style.display = "none";
+    }
+    this.isShowingMouths = false;
+  }
+
+  public updateNotAllowedOverlay(
+    dementor: Dementor | null,
+    player: Player
+  ): void {
+    // Check if dementor is dead or not casting silence shriek
+    if (
+      !dementor ||
+      dementor.state === "dead" ||
+      (dementor.state !== "casting" &&
+        !(
+          player.isSilenced &&
+          player.silenceEndTime &&
+          Date.now() < player.silenceEndTime
+        ))
+    ) {
+      if (this.isShowingNotAllowed) {
+        this.hideNotAllowedOverlay();
+      }
+      return;
+    }
+
+    const now = Date.now();
+
+    // During casting phase: gradual reveal from right to left, top to bottom
+    if (
+      dementor.state === "casting" &&
+      dementor.currentSkill === "silenceshriek"
+    ) {
+      const elapsedTime = now - dementor.skillCastStartTime;
+      const totalDuration = dementor.skillCastDuration;
+      const progress = Math.min(elapsedTime / totalDuration, 1.0);
+
+      if (!this.isShowingNotAllowed) {
+        this.showNotAllowedOverlay();
+        this.isShowingNotAllowed = true;
+      }
+
+      if (this.notAllowedElement) {
+        this.notAllowedElement.style.display = "block";
+
+        // Gradual reveal from right to left, top to bottom
+        // Start with fully clipped (100% right, 100% bottom), gradually reveal
+        const rightClip = (1 - progress) * 100; // Start at 100%, go to 0%
+        const bottomClip = (1 - progress) * 100; // Start at 100%, go to 0%
+
+        this.notAllowedElement.style.clipPath = `inset(0 ${rightClip}% ${bottomClip}% 0)`;
+      }
+    }
+    // After successful cast: blink while player is silenced
+    else if (
+      player.isSilenced &&
+      player.silenceEndTime &&
+      Date.now() < player.silenceEndTime
+    ) {
+      if (!this.isShowingNotAllowed) {
+        this.showNotAllowedOverlay();
+        this.isShowingNotAllowed = true;
+      }
+
+      if (this.notAllowedElement) {
+        // Blinking animation - toggle every 500ms
+        const blinkSpeed = 500;
+        const isBlinkCycle = Math.floor(Date.now() / blinkSpeed) % 2 === 0;
+
+        this.notAllowedElement.style.display = isBlinkCycle ? "block" : "none";
+        this.notAllowedElement.style.clipPath = "none"; // Remove clipping during blink
+      }
+    }
+    // Debuff ended or casting interrupted: hide not allowed
+    else {
+      if (this.isShowingNotAllowed) {
+        this.hideNotAllowedOverlay();
+      }
+    }
+  }
+
+  private showNotAllowedOverlay(): void {
+    if (
+      this.notAllowedElement &&
+      !document.body.contains(this.notAllowedElement)
+    ) {
+      document.body.appendChild(this.notAllowedElement);
+    }
+  }
+
+  public hideNotAllowedOverlay(): void {
+    if (this.notAllowedElement) {
+      this.notAllowedElement.style.display = "none";
+      this.notAllowedElement.style.clipPath = "none"; // Reset clipping
+    }
+    this.isShowingNotAllowed = false;
+  }
+
+  public updatePlayerShieldOverlay(player: Player): void {
+    // Check if player is protected
+    if (player.isProtected && Date.now() < player.protectionEndTime) {
+      if (!this.isShowingPlayerShield) {
+        this.showPlayerShieldOverlay();
+        this.isShowingPlayerShield = true;
+      }
+
+      // Add floating animation while shield is active
+      if (this.playerShieldElement) {
+        this.playerShieldElement.style.display = "block";
+
+        const now = Date.now();
+        const elapsedTime = now - (player.protectionEndTime - 5000); // Start time of protection
+        const animationOffset = this.getPlayerShieldFloatingOffset(elapsedTime);
+        this.playerShieldElement.style.transform = `translate(${animationOffset.x}px, ${animationOffset.y}px)`;
+      }
+    } else {
+      // Protection ended: hide shield
+      if (this.isShowingPlayerShield) {
+        this.hidePlayerShieldOverlay();
+      }
+    }
+  }
+
+  private showPlayerShieldOverlay(): void {
+    if (
+      this.playerShieldElement &&
+      !document.body.contains(this.playerShieldElement)
+    ) {
+      document.body.appendChild(this.playerShieldElement);
+    }
+    if (this.playerShieldElement) {
+      this.playerShieldElement.style.display = "block";
+      this.playerShieldElement.style.transform = "translate(0px, 0px)"; // Reset transform
+    }
+  }
+
+  public hidePlayerShieldOverlay(): void {
+    if (this.playerShieldElement) {
+      this.playerShieldElement.style.display = "none";
+      this.playerShieldElement.style.transform = "translate(0px, 0px)"; // Reset transform
+    }
+    this.isShowingPlayerShield = false;
+  }
+
+  private getPlayerShieldFloatingOffset(elapsedTime: number): {
+    x: number;
+    y: number;
+  } {
+    // Gentle floating animation for player shield
+    const baseSpeed = 0.0025; // Slightly faster than troll shield
+    const time = elapsedTime * baseSpeed;
+
+    // Gentle floating pattern with protective feel
+    const amplitude = { x: 6, y: 10 }; // Smaller movement range for player shield
+
+    // Calculate floating position using sine waves with magical feel
+    const x =
+      Math.sin(time) * amplitude.x + Math.sin(time * 0.7) * (amplitude.x * 0.3);
+    const y =
+      Math.cos(time * 0.9) * amplitude.y +
+      Math.sin(time * 1.1) * (amplitude.y * 0.4);
+
+    return { x, y };
+  }
+
+  public triggerMagicFlow(): void {
+    this.isShowingMagicFlow = true;
+    this.magicFlowStartTime = Date.now();
+
+    if (
+      this.magicFlowElement &&
+      !document.body.contains(this.magicFlowElement)
+    ) {
+      document.body.appendChild(this.magicFlowElement);
+    }
+  }
+
+  public updateMagicFlowOverlay(): void {
+    if (!this.isShowingMagicFlow) return;
+
+    const now = Date.now();
+    const elapsedTime = now - this.magicFlowStartTime;
+    const progress = Math.min(elapsedTime / this.magicFlowDuration, 1.0);
+
+    if (this.magicFlowElement) {
+      this.magicFlowElement.style.display = "block";
+
+      // Left to right reveal animation
+      const revealPercent = progress * 100; // 0% to 100%
+
+      // Fade effect that also moves from left to right
+      // Early part of animation: start revealing with full opacity
+      // Later part: continue revealing but start fading
+      let opacity = 1.0;
+      if (progress > 0.4) {
+        // Start fading after 40% of animation
+        const fadeProgress = (progress - 0.4) / 0.6; // 0 to 1 for remaining 60%
+        opacity = 1.0 - fadeProgress;
+      }
+
+      // Clip from left: start with 100% clipped from right, gradually reveal
+      this.magicFlowElement.style.clipPath = `inset(0 ${
+        100 - revealPercent
+      }% 0 0)`;
+      this.magicFlowElement.style.opacity = opacity.toString();
+    }
+
+    // Animation complete
+    if (progress >= 1.0) {
+      this.hideMagicFlowOverlay();
+    }
+  }
+
+  public hideMagicFlowOverlay(): void {
+    if (this.magicFlowElement) {
+      this.magicFlowElement.style.display = "none";
+      this.magicFlowElement.style.clipPath = "none"; // Reset clipping
+      this.magicFlowElement.style.opacity = "1"; // Reset opacity
+    }
+    this.isShowingMagicFlow = false;
+  }
+
+  public triggerIncendio(): void {
+    this.isShowingIncendio = true;
+    this.incendioStartTime = Date.now();
+
+    if (this.incendioElement) {
+      if (!document.body.contains(this.incendioElement)) {
+        document.body.appendChild(this.incendioElement);
+      }
+      this.incendioElement.style.display = "block";
+      this.incendioElement.style.transform = "translate(0px, 0px)"; // Reset transform
+    }
+  }
+
+  public updateIncendioOverlay(): void {
+    if (!this.isShowingIncendio) return;
+
+    const now = Date.now();
+    const elapsedTime = now - this.incendioStartTime;
+    const progress = Math.min(elapsedTime / this.incendioDuration, 1.0);
+
+    if (this.incendioElement) {
+      this.incendioElement.style.display = "block";
+
+      // Frame-by-frame animation for 0.5 seconds
+      const frameTime = Math.floor(elapsedTime / 50); // 0.05 seconds per frame (faster)
+      const animationOffset = this.getIncendioAnimationOffset(frameTime);
+      this.incendioElement.style.transform = `translate(${animationOffset.x}px, ${animationOffset.y}px)`;
+    }
+
+    // Animation complete
+    if (progress >= 1.0) {
+      this.hideIncendioOverlay();
+    }
+  }
+
+  private getIncendioAnimationOffset(frameTime: number): {
+    x: number;
+    y: number;
+  } {
+    const animationPatterns = [
+      // Frame 0: Center
+      { x: 0, y: 0 },
+      // Frame 1: Flame flicker up
+      { x: 0, y: -8 },
+      // Frame 2: Flame flicker down
+      { x: 0, y: 8 },
+      // Frame 3: Flame flicker left
+      { x: -8, y: 0 },
+      // Frame 4: Flame flicker right
+      { x: 8, y: 0 },
+      // Frame 5: Diagonal flicker
+      { x: -6, y: -6 },
+      // Frame 6: Opposite diagonal
+      { x: 6, y: 6 },
+      // Frame 7: Intense flicker
+      { x: 0, y: -12 },
+      // Frame 8: Settle
+      { x: 0, y: 0 },
+    ];
+    return animationPatterns[frameTime % animationPatterns.length];
+  }
+
+  public hideIncendioOverlay(): void {
+    if (this.incendioElement) {
+      this.incendioElement.style.display = "none";
+      this.incendioElement.style.transform = "translate(0px, 0px)"; // Reset transform
+    }
+    this.isShowingIncendio = false;
+  }
+
+  public triggerBombarda(): void {
+    this.isShowingBombarda = true;
+    this.bombardaStartTime = Date.now();
+
+    if (this.bombardaElement) {
+      if (!document.body.contains(this.bombardaElement)) {
+        document.body.appendChild(this.bombardaElement);
+      }
+      this.bombardaElement.style.display = "block";
+      this.bombardaElement.style.transform = "translate(0px, 0px)"; // Reset transform
+    }
+  }
+
+  public updateBombardaOverlay(): void {
+    if (!this.isShowingBombarda) return;
+
+    const now = Date.now();
+    const elapsedTime = now - this.bombardaStartTime;
+    const progress = Math.min(elapsedTime / this.bombardaDuration, 1.0);
+
+    if (this.bombardaElement) {
+      this.bombardaElement.style.display = "block";
+
+      // Frame-by-frame animation for 1 second
+      const frameTime = Math.floor(elapsedTime / 100); // 0.1 seconds per frame
+      const animationOffset = this.getBombardaAnimationOffset(frameTime);
+      this.bombardaElement.style.transform = `translate(${animationOffset.x}px, ${animationOffset.y}px)`;
+    }
+
+    // Animation complete
+    if (progress >= 0.5) {
+      this.hideBombardaOverlay();
+    }
+  }
+
+  private getBombardaAnimationOffset(frameTime: number): {
+    x: number;
+    y: number;
+  } {
+    const animationPatterns = [
+      // Frame 0: Center
+      { x: 0, y: 0 },
+      // Frame 1: Explosive outward
+      { x: 15, y: -15 },
+      // Frame 2: More explosive
+      { x: -12, y: 18 },
+      // Frame 3: Chaotic movement
+      { x: 20, y: 8 },
+      // Frame 4: Settle down
+      { x: -8, y: -12 },
+      // Frame 5: Final explosion wave
+      { x: 25, y: -20 },
+      // Frame 6: Contracting
+      { x: -18, y: 15 },
+      // Frame 7: Last burst
+      { x: 10, y: -25 },
+      // Frame 8: Return to center
+      { x: 0, y: 0 },
+    ];
+    return animationPatterns[frameTime % animationPatterns.length];
+  }
+
+  public hideBombardaOverlay(): void {
+    if (this.bombardaElement) {
+      this.bombardaElement.style.display = "none";
+      this.bombardaElement.style.transform = "translate(0px, 0px)"; // Reset transform
+    }
+    this.isShowingBombarda = false;
+  }
+
+  public triggerGlacius(): void {
+    this.isShowingGlacius = true;
+    this.glaciusStartTime = Date.now();
+
+    if (this.glaciusElement) {
+      if (!document.body.contains(this.glaciusElement)) {
+        document.body.appendChild(this.glaciusElement);
+      }
+      this.glaciusElement.style.display = "block";
+      this.glaciusElement.style.opacity = "0"; // Start invisible for fade in
+    }
+  }
+
+  public updateGlaciusOverlay(): void {
+    if (!this.isShowingGlacius) return;
+
+    const now = Date.now();
+    const elapsedTime = now - this.glaciusStartTime;
+    const progress = Math.min(elapsedTime / this.glaciusDuration, 1.0);
+
+    if (this.glaciusElement) {
+      this.glaciusElement.style.display = "block";
+
+      // Fade in effect - simple opacity animation
+      const fadeInDuration = 300; // 0.3 seconds to fade in
+      if (elapsedTime <= fadeInDuration) {
+        // Fade in phase
+        const fadeProgress = elapsedTime / fadeInDuration;
+        this.glaciusElement.style.opacity = fadeProgress.toString();
+      } else {
+        // Fully visible phase
+        this.glaciusElement.style.opacity = "1";
+      }
+    }
+
+    // Animation complete
+    if (progress >= 1.0) {
+      this.hideGlaciusOverlay();
+    }
+  }
+
+  public hideGlaciusOverlay(): void {
+    if (this.glaciusElement) {
+      this.glaciusElement.style.display = "none";
+      this.glaciusElement.style.opacity = "1"; // Reset opacity
+    }
+    this.isShowingGlacius = false;
+  }
+
+  public triggerAvada(): void {
+    this.isShowingAvada = true;
+    this.avadaStartTime = Date.now();
+
+    if (this.avadaElement) {
+      if (!document.body.contains(this.avadaElement)) {
+        document.body.appendChild(this.avadaElement);
+      }
+      this.avadaElement.style.display = "block";
+      this.avadaElement.style.opacity = "0"; // Start invisible for fade in
+    }
+
+    if (this.avadaGlowElement) {
+      if (!document.body.contains(this.avadaGlowElement)) {
+        document.body.appendChild(this.avadaGlowElement);
+      }
+      this.avadaGlowElement.style.display = "block";
+      this.avadaGlowElement.style.opacity = "0"; // Start invisible for fade in
+    }
+  }
+
+  public updateAvadaOverlay(): void {
+    if (!this.isShowingAvada) return;
+
+    const now = Date.now();
+    const elapsedTime = now - this.avadaStartTime;
+    const progress = Math.min(elapsedTime / this.avadaDuration, 1.0);
+
+    // Lightning element - left to right reveal animation (0.8 seconds)
+    const lightningDuration = 800;
+    if (this.avadaElement && elapsedTime <= lightningDuration) {
+      this.avadaElement.style.display = "block";
+
+      // Left to right reveal animation (quick)
+      const revealDuration = 400; // 0.4 seconds for lightning reveal
+      if (elapsedTime <= revealDuration) {
+        const revealProgress = elapsedTime / revealDuration;
+        const revealPercent = revealProgress * 100; // 0% to 100%
+
+        // Clip from left: start with 100% clipped from right, gradually reveal
+        this.avadaElement.style.clipPath = `inset(0 ${
+          100 - revealPercent
+        }% 0 0)`;
+        this.avadaElement.style.opacity = "1";
+      } else {
+        // Fully revealed, then fade out
+        this.avadaElement.style.clipPath = `inset(0 0% 0 0)`;
+        const fadeOutProgress =
+          (elapsedTime - revealDuration) / (lightningDuration - revealDuration);
+        this.avadaElement.style.opacity = (1 - fadeOutProgress).toString();
+      }
+    } else if (this.avadaElement) {
+      // Lightning finished, hide it
+      this.avadaElement.style.display = "none";
+    }
+
+    // Green glow element - pulse effect for full duration (1.8 seconds)
+    if (this.avadaGlowElement) {
+      this.avadaGlowElement.style.display = "block";
+
+      // Pulsing glow effect with slower fade out towards the end
+      if (elapsedTime <= 1200) {
+        // First 1.2 seconds: full intensity pulsing
+        const pulseSpeed = 0.01; // Fast pulse
+        const pulseIntensity = Math.sin(elapsedTime * pulseSpeed) * 0.2 + 0.4; // 0.2 to 0.6 opacity
+        this.avadaGlowElement.style.opacity = pulseIntensity.toString();
+      } else {
+        // Last 0.6 seconds: gradual fade out while still pulsing
+        const fadeOutProgress = (elapsedTime - 1200) / 600; // 0 to 1 over last 0.6s
+        const pulseSpeed = 0.01;
+        const pulseIntensity = Math.sin(elapsedTime * pulseSpeed) * 0.2 + 0.4;
+        const finalIntensity = pulseIntensity * (1 - fadeOutProgress);
+        this.avadaGlowElement.style.opacity = Math.max(
+          0,
+          finalIntensity
+        ).toString();
+      }
+    }
+
+    // Animation complete
+    if (progress >= 1.0) {
+      this.hideAvadaOverlay();
+    }
+  }
+
+  public hideAvadaOverlay(): void {
+    if (this.avadaElement) {
+      this.avadaElement.style.display = "none";
+      this.avadaElement.style.opacity = "1"; // Reset opacity
+      this.avadaElement.style.clipPath = "none"; // Reset clipping
+    }
+    if (this.avadaGlowElement) {
+      this.avadaGlowElement.style.display = "none";
+      this.avadaGlowElement.style.opacity = "1"; // Reset opacity
+    }
+    this.isShowingAvada = false;
+  }
+
+  public updateStunnedOverlay(
+    spider: Spider | null,
+    troll: Troll | null,
+    dementor: Dementor | null
+  ): void {
+    // Check if any enemy is stunned
+    const currentEnemy = spider || troll || dementor;
+    const isEnemyStunned =
+      currentEnemy &&
+      currentEnemy.state === "stunned" &&
+      Date.now() < currentEnemy.stunEndTime;
+
+    if (isEnemyStunned) {
+      if (!this.isShowingStunned) {
+        this.showStunnedOverlay();
+        this.isShowingStunned = true;
+        this.stunnedAnimationStartTime = Date.now();
+      }
+
+      // Apply gentle left-right swaying animation
+      if (this.stunnedElement) {
+        this.stunnedElement.style.display = "block";
+
+        const now = Date.now();
+        const elapsedTime = now - this.stunnedAnimationStartTime;
+        const frameTime = Math.floor(elapsedTime / 200); // 0.2 seconds per frame
+        const rotationAngle = this.getStunnedSeesawRotation(frameTime);
+        this.stunnedElement.style.transform = `rotate(${rotationAngle}deg)`;
+        this.stunnedElement.style.transformOrigin = "center center"; // Rotate around center
+      }
+    } else {
+      // No enemy stunned: hide stunned effect
+      if (this.isShowingStunned) {
+        this.hideStunnedOverlay();
+      }
+    }
+  }
+
+  private getStunnedSeesawRotation(frameTime: number): number {
+    const rotationPatterns = [
+      // Frame 0: Center
+      0,
+      // Frame 1: Tilt left
+      -3,
+      // Frame 2: Back to center
+      0,
+      // Frame 3: Tilt right
+      3,
+    ];
+    return rotationPatterns[frameTime % rotationPatterns.length];
+  }
+
+  private showStunnedOverlay(): void {
+    if (this.stunnedElement && !document.body.contains(this.stunnedElement)) {
+      document.body.appendChild(this.stunnedElement);
+    }
+    if (this.stunnedElement) {
+      this.stunnedElement.style.display = "block";
+      this.stunnedElement.style.transform = "rotate(0deg)"; // Reset transform
+      this.stunnedElement.style.transformOrigin = "center center";
+    }
+  }
+
+  public hideStunnedOverlay(): void {
+    if (this.stunnedElement) {
+      this.stunnedElement.style.display = "none";
+      this.stunnedElement.style.transform = "rotate(0deg)"; // Reset transform
+      this.stunnedElement.style.transformOrigin = "center center";
+    }
+    this.isShowingStunned = false;
+  }
+
+  public triggerPlayerShake(): void {
+    this.isPlayerShaking = true;
+    this.shakeStartTime = Date.now();
+  }
+
+  private getPlayerShakeOffset(): { x: number; y: number } {
+    if (!this.isPlayerShaking) {
+      return { x: 0, y: 0 };
+    }
+
+    const now = Date.now();
+    const elapsed = now - this.shakeStartTime;
+
+    if (elapsed >= this.shakeDuration) {
+      this.isPlayerShaking = false;
+      return { x: 0, y: 0 };
+    }
+
+    // Calculate shake intensity that decreases over time
+    const progress = elapsed / this.shakeDuration;
+    const intensityMultiplier = 1 - progress; // Start at 1, fade to 0
+    const currentIntensity = this.shakeIntensity * intensityMultiplier;
+
+    // Generate random shake offset in all directions
+    const shakeX = (Math.random() - 0.5) * 2 * currentIntensity;
+    const shakeY = (Math.random() - 0.5) * 2 * currentIntensity;
+
+    return { x: shakeX, y: shakeY };
   }
 
   public updateAnimatedBackgrounds(): void {
@@ -791,6 +1798,16 @@ export class Renderer {
     this.hideVenomCastingOverlay();
     this.hideStoneThrowingOverlay();
     this.hideShieldOverlay();
+    this.hideCrackOverlay();
+    this.hideMouthOverlay();
+    this.hideNotAllowedOverlay();
+    this.hidePlayerShieldOverlay();
+    this.hideMagicFlowOverlay();
+    this.hideIncendioOverlay();
+    this.hideBombardaOverlay();
+    this.hideGlaciusOverlay();
+    this.hideAvadaOverlay();
+    this.hideStunnedOverlay();
     this.hideSpiderName();
     this.hideTrollName();
     this.hideDementorName();
@@ -807,6 +1824,9 @@ export class Renderer {
     const breathingAmplitude = 3; // Small movement range (3 pixels)
     const breathingOffset = Math.sin(now * breathingSpeed) * breathingAmplitude;
 
+    // Get shake offset for damage feedback
+    const shakeOffset = this.getPlayerShakeOffset();
+
     // Apply breathing animation to y position (up and down movement)
     const originalY = player.y;
     player.y = player.originalY + breathingOffset;
@@ -819,7 +1839,7 @@ export class Renderer {
 
     const playerImage = (window as any).playerImage;
 
-    // Draw the player image with proper aspect ratio
+    // Draw the player image with proper aspect ratio and shake offset
     if (playerImage.complete) {
       // Calculate aspect ratio-preserving dimensions using actual image proportions
       const originalAspectRatio = 302 / 465; // Actual player image dimensions (don't stretch)
@@ -838,45 +1858,101 @@ export class Renderer {
         drawHeight = targetWidth / originalAspectRatio;
       }
 
-      // Center the image within the target area
-      const offsetX = player.x + (targetWidth - drawWidth) / 2;
-      const offsetY = player.y + (targetHeight - drawHeight) / 2;
+      // Center the image within the target area and apply shake offset
+      const offsetX = player.x + (targetWidth - drawWidth) / 2 + shakeOffset.x;
+      const offsetY =
+        player.y + (targetHeight - drawHeight) / 2 + shakeOffset.y;
 
       this.ctx.drawImage(playerImage, offsetX, offsetY, drawWidth, drawHeight);
     } else {
-      // Fallback to original drawing if image not loaded
+      // Fallback to original drawing if image not loaded, with shake offset
       // Main body
       this.ctx.fillStyle = player.color;
-      this.ctx.fillRect(player.x, player.y, player.width, player.height);
+      this.ctx.fillRect(
+        player.x + shakeOffset.x,
+        player.y + shakeOffset.y,
+        player.width,
+        player.height
+      );
 
       // Simple head
       this.ctx.fillStyle = "#fdbcb4";
-      this.ctx.fillRect(player.x + 10, player.y - 20, 40, 30);
+      this.ctx.fillRect(
+        player.x + 10 + shakeOffset.x,
+        player.y - 20 + shakeOffset.y,
+        40,
+        30
+      );
 
       // Eyes
       this.ctx.fillStyle = "#000000";
-      this.ctx.fillRect(player.x + 18, player.y - 12, 4, 4);
-      this.ctx.fillRect(player.x + 38, player.y - 12, 4, 4);
+      this.ctx.fillRect(
+        player.x + 18 + shakeOffset.x,
+        player.y - 12 + shakeOffset.y,
+        4,
+        4
+      );
+      this.ctx.fillRect(
+        player.x + 38 + shakeOffset.x,
+        player.y - 12 + shakeOffset.y,
+        4,
+        4
+      );
 
       // Mouth
-      this.ctx.fillRect(player.x + 25, player.y - 5, 10, 2);
+      this.ctx.fillRect(
+        player.x + 25 + shakeOffset.x,
+        player.y - 5 + shakeOffset.y,
+        10,
+        2
+      );
 
       // Arms
       this.ctx.fillStyle = player.color;
-      this.ctx.fillRect(player.x - 20, player.y + 40, 20, 40);
-      this.ctx.fillRect(player.x + player.width, player.y + 40, 20, 40);
+      this.ctx.fillRect(
+        player.x - 20 + shakeOffset.x,
+        player.y + 40 + shakeOffset.y,
+        20,
+        40
+      );
+      this.ctx.fillRect(
+        player.x + player.width + shakeOffset.x,
+        player.y + 40 + shakeOffset.y,
+        20,
+        40
+      );
 
       // Legs
-      this.ctx.fillRect(player.x + 10, player.y + player.height, 20, 40);
-      this.ctx.fillRect(player.x + 30, player.y + player.height, 20, 40);
+      this.ctx.fillRect(
+        player.x + 10 + shakeOffset.x,
+        player.y + player.height + shakeOffset.y,
+        20,
+        40
+      );
+      this.ctx.fillRect(
+        player.x + 30 + shakeOffset.x,
+        player.y + player.height + shakeOffset.y,
+        20,
+        40
+      );
 
       // Wand
       this.ctx.fillStyle = "#8B4513";
-      this.ctx.fillRect(player.x + player.width + 20, player.y + 50, 2, 20);
+      this.ctx.fillRect(
+        player.x + player.width + 20 + shakeOffset.x,
+        player.y + 50 + shakeOffset.y,
+        2,
+        20
+      );
 
       // Wand tip
       this.ctx.fillStyle = "#FFD700";
-      this.ctx.fillRect(player.x + player.width + 19, player.y + 48, 4, 4);
+      this.ctx.fillRect(
+        player.x + player.width + 19 + shakeOffset.x,
+        player.y + 48 + shakeOffset.y,
+        4,
+        4
+      );
     }
 
     // Restore original Y position (don't permanently modify the player object)
@@ -1016,6 +2092,85 @@ export class Renderer {
     this.ctx.textAlign = "left"; // Reset text alignment
   }
 
+  public drawMagicBar(player: Player, x: number, y: number): void {
+    const barWidth = 600; // Slightly shorter than health bar (750px)
+    const barHeight = 20; // Slightly thinner than health bar (25px)
+    const magicPercentage = player.currentMagic / player.maxMagic;
+
+    // Calculate the new width based on magic percentage
+    const newBarWidth = barWidth * magicPercentage;
+
+    // Background bar with paper texture
+    const paperTextureElement = document.getElementById(
+      "paperTexture"
+    ) as HTMLImageElement;
+    if (paperTextureElement) {
+      const paperTexture = this.ctx.createPattern(
+        paperTextureElement,
+        "repeat"
+      );
+      if (paperTexture) {
+        this.ctx.fillStyle = paperTexture;
+        this.ctx.fillRect(x, y, barWidth, barHeight);
+      }
+    }
+
+    // Magic bar with blue/purple color scheme and irregular edges
+    this.ctx.fillStyle = "#8e44ad"; // Purple
+    this.ctx.beginPath();
+    this.ctx.moveTo(x, y);
+    for (let i = 0; i < newBarWidth; i += 10) {
+      const offset = Math.random() * 2 - 1; // More pronounced movement
+      this.ctx.lineTo(x + i, y + offset);
+    }
+    this.ctx.lineTo(x + newBarWidth, y + barHeight);
+    for (let i = newBarWidth; i > 0; i -= 10) {
+      const offset = Math.random() * 2 - 1; // More pronounced movement
+      this.ctx.lineTo(x + i, y + barHeight + offset);
+    }
+    this.ctx.lineTo(x, y + barHeight);
+    this.ctx.closePath();
+    this.ctx.fill();
+
+    // Irregular white border with animation
+    this.ctx.strokeStyle = "#ffffff";
+    this.ctx.lineWidth = 2;
+    this.ctx.beginPath();
+    // Top edge with animation (irregular)
+    this.ctx.moveTo(x, y);
+    for (let i = 0; i < barWidth; i += 10) {
+      const offset = Math.random() * 2 - 1; // More pronounced movement
+      this.ctx.lineTo(x + i, y + offset);
+    }
+    // Right edge (straight line to bottom)
+    this.ctx.lineTo(x + barWidth, y + barHeight);
+    // Bottom edge with animation (irregular)
+    for (let i = barWidth; i > 0; i -= 10) {
+      const offset = Math.random() * 2 - 1; // More pronounced movement
+      this.ctx.lineTo(x + i, y + barHeight + offset);
+    }
+    // Left edge (straight line back to start)
+    this.ctx.lineTo(x, y + barHeight);
+    this.ctx.closePath();
+    this.ctx.stroke();
+
+    // Magic icon and text
+    this.ctx.fillStyle = "#ffffff";
+    this.ctx.font = "bold 16px Arial";
+    this.ctx.fillText("✨", x - 25, y + 16);
+
+    // Show current/max magic with color coding - centered inside the bar
+    this.ctx.fillStyle = "#ffffff";
+    this.ctx.font = "bold 14px Arial";
+    this.ctx.textAlign = "center";
+    this.ctx.fillText(
+      `${player.currentMagic}/${player.maxMagic}`,
+      x + barWidth / 2,
+      y + 15
+    );
+    this.ctx.textAlign = "left"; // Reset text alignment
+  }
+
   public drawEnemyCastingBar(
     enemy: Spider | Troll | Dementor,
     _x: number,
@@ -1080,205 +2235,19 @@ export class Renderer {
   }
 
   public drawEnhancedStatusEffects(
-    player: Player,
-    spider: Spider | null,
-    troll: Troll | null,
-    dementor: Dementor | null
+    _player: Player,
+    _spider: Spider | null,
+    _troll: Troll | null,
+    _dementor: Dementor | null
   ): void {
-    // Player status effects (below player health bar at bottom)
-    const playerStatusX = 50;
-    const playerHealthY = this.canvas.height - 120;
-    const playerStatusY = playerHealthY + 25 + 10; // health bar y + height + spacing
-    let currentY = playerStatusY;
-
-    this.ctx.fillStyle = "#ffffff";
-    this.ctx.font = "bold 14px Arial";
-    this.ctx.textAlign = "left";
-    this.ctx.fillText("Player Status:", playerStatusX, currentY);
-    currentY += 20;
-
-    let hasPlayerStatus = false;
-
-    if (player.isImmobilized && Date.now() < player.immobilizedEndTime) {
-      const remaining = Math.ceil(
-        (player.immobilizedEndTime - Date.now()) / 1000
-      );
-      this.ctx.fillStyle = "#ff6600";
-      this.ctx.font = "12px Arial";
-      this.ctx.fillText(
-        `🕸️ Immobilized (${remaining}s)`,
-        playerStatusX,
-        currentY
-      );
-      currentY += 16;
-      hasPlayerStatus = true;
-    }
-
-    if (player.isPoisoned && Date.now() < player.poisonEndTime) {
-      const remaining = Math.ceil((player.poisonEndTime - Date.now()) / 1000);
-      this.ctx.fillStyle = "#00ff00";
-      this.ctx.font = "12px Arial";
-      this.ctx.fillText(`🐍 Poisoned (${remaining}s)`, playerStatusX, currentY);
-      currentY += 16;
-      hasPlayerStatus = true;
-    }
-
-    if (player.isProtected && Date.now() < player.protectionEndTime) {
-      const remaining = Math.ceil(
-        (player.protectionEndTime - Date.now()) / 1000
-      );
-      this.ctx.fillStyle = "#4a90e2";
-      this.ctx.font = "12px Arial";
-      this.ctx.fillText(
-        `🛡️ Protected (${remaining}s)`,
-        playerStatusX,
-        currentY
-      );
-      currentY += 16;
-      hasPlayerStatus = true;
-    }
-
-    if (player.isSilenced && Date.now() < (player.silenceEndTime || 0)) {
-      const remaining = Math.ceil(
-        ((player.silenceEndTime || 0) - Date.now()) / 1000
-      );
-      this.ctx.fillStyle = "#8A2BE2";
-      this.ctx.font = "12px Arial";
-      this.ctx.fillText(`🔇 Silenced (${remaining}s)`, playerStatusX, currentY);
-      currentY += 16;
-      hasPlayerStatus = true;
-    }
-
-    if (!hasPlayerStatus) {
-      this.ctx.fillStyle = "#cccccc";
-      this.ctx.font = "12px Arial";
-      this.ctx.fillText("Normal", playerStatusX, currentY);
-    }
-
-    // Enemy status effects (below enemy health bar)
-    const enemy = spider || troll || dementor;
-    if (enemy) {
-      const enemyStatusX = this.canvas.width - 250;
-      const enemyStatusY = 50 + 25 + 10; // health bar y + new height + spacing
-      let enemyY = enemyStatusY;
-
-      let hasEnemyStatus = false;
-
-      if (enemy.state === "stunned" && Date.now() < enemy.stunEndTime) {
-        const remaining = Math.ceil((enemy.stunEndTime - Date.now()) / 1000);
-        this.ctx.fillStyle = "#ffff00";
-        this.ctx.font = "12px Arial";
-        this.ctx.fillText(`💫 Stunned (${remaining}s)`, enemyStatusX, enemyY);
-        enemyY += 16;
-        hasEnemyStatus = true;
-      }
-
-      if (enemy.state === "levitating" && Date.now() < enemy.levitateEndTime) {
-        const remaining = Math.ceil(
-          (enemy.levitateEndTime - Date.now()) / 1000
-        );
-        this.ctx.fillStyle = "#00ffff";
-        this.ctx.font = "12px Arial";
-        this.ctx.fillText(
-          `🪶 Levitating (${remaining}s)`,
-          enemyStatusX,
-          enemyY
-        );
-        enemyY += 16;
-        hasEnemyStatus = true;
-      }
-
-      // Spider-specific status
-      if (spider && spider.isOnFire && Date.now() < spider.fireEndTime) {
-        const remaining = Math.ceil((spider.fireEndTime - Date.now()) / 1000);
-        this.ctx.fillStyle = "#ff6600";
-        this.ctx.font = "12px Arial";
-        this.ctx.fillText(`🔥 On Fire (${remaining}s)`, enemyStatusX, enemyY);
-        enemyY += 16;
-        hasEnemyStatus = true;
-      }
-
-      // Troll-specific status
-      if (
-        troll &&
-        troll.hasChunkArmor &&
-        Date.now() < troll.chunkArmorEndTime
-      ) {
-        const remaining = Math.ceil(
-          (troll.chunkArmorEndTime - Date.now()) / 1000
-        );
-        this.ctx.fillStyle = "#8B4513";
-        this.ctx.font = "12px Arial";
-        this.ctx.fillText(
-          `🛡️ Chunk Armor (${remaining}s)`,
-          enemyStatusX,
-          enemyY
-        );
-        enemyY += 16;
-        hasEnemyStatus = true;
-      }
-
-      // Dementor-specific status
-      if (dementor && dementor.state === "shadowphase") {
-        this.ctx.fillStyle = "#8A2BE2";
-        this.ctx.font = "12px Arial";
-        this.ctx.fillText(`🌑 Shadow Phase`, enemyStatusX, enemyY);
-        enemyY += 16;
-        hasEnemyStatus = true;
-      }
-
-      if (!hasEnemyStatus) {
-        this.ctx.fillStyle = "#cccccc";
-        this.ctx.font = "12px Arial";
-        this.ctx.fillText("Normal", enemyStatusX, enemyY);
-      }
-    }
-
-    this.ctx.textAlign = "left";
-  }
-
-  public drawSkipButton(skipButton: {
-    x: number;
-    y: number;
-    width: number;
-    height: number;
-    isHovered: boolean;
-  }): void {
-    // Skip button background
-    this.ctx.fillStyle = skipButton.isHovered ? "#ff6b6b" : "#ff8c8c";
-    this.ctx.fillRect(
-      skipButton.x,
-      skipButton.y,
-      skipButton.width,
-      skipButton.height
-    );
-
-    // Skip button border
-    this.ctx.strokeStyle = "#ffffff";
-    this.ctx.lineWidth = 2;
-    this.ctx.strokeRect(
-      skipButton.x,
-      skipButton.y,
-      skipButton.width,
-      skipButton.height
-    );
-
-    // Skip button text
-    this.ctx.fillStyle = "#ffffff";
-    this.ctx.font = "bold 14px Arial";
-    this.ctx.textAlign = "center";
-    this.ctx.fillText(
-      "Skip",
-      skipButton.x + skipButton.width / 2,
-      skipButton.y + skipButton.height / 2 + 5
-    );
+    // All status text display removed - only visual effects remain
     this.ctx.textAlign = "left";
   }
 
   public drawGameMessages(
     gameWon: boolean,
     gameOver: boolean,
-    lastSpellCast: string | null
+    _lastSpellCast: string | null
   ): void {
     if (gameWon) {
       // Victory message
@@ -1348,19 +2317,6 @@ export class Renderer {
       );
 
       this.ctx.textAlign = "left";
-    } else {
-      // Last spell cast display
-      if (lastSpellCast) {
-        this.ctx.fillStyle = "#ffffff";
-        this.ctx.font = "16px Arial";
-        this.ctx.textAlign = "center";
-        this.ctx.fillText(
-          `Last Spell: ${lastSpellCast.toUpperCase()}`,
-          this.canvas.width / 2,
-          this.canvas.height - 40
-        );
-        this.ctx.textAlign = "left";
-      }
     }
   }
 
@@ -1399,6 +2355,10 @@ export class Renderer {
     // Player health bar - bottom left, below player
     const playerHealthY = this.canvas.height - 120; // Bottom area, above UI elements
     this.drawCollageHealthBar(player, 50, playerHealthY, "", "left");
+
+    // Player magic bar - above health bar
+    const playerMagicY = playerHealthY - 35; // 35px above health bar
+    this.drawMagicBar(player, 50, playerMagicY);
 
     // Enemy health bar - top right (aligned with same 50px margin)
     if (spider) {

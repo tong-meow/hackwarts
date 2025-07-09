@@ -15,13 +15,12 @@ export interface BaseEnemyState {
   originalColor: string;
 
   // AI states
-  state: "idle" | "casting" | "stunned" | "levitating" | "dead" | "shadowphase";
+  state: "idle" | "casting" | "stunned" | "dead" | "shadowphase";
   currentSkill: string;
   skillCastStartTime: number;
   skillCastDuration: number;
   nextSkillTime: number;
   stunEndTime: number;
-  levitateEndTime: number;
 }
 
 // Common enemy functions
@@ -53,19 +52,12 @@ export function createBaseEnemy(
     skillCastDuration: 0,
     nextSkillTime: Date.now() + Math.random() * 3000 + 2000,
     stunEndTime: 0,
-    levitateEndTime: 0,
   };
 }
 
 // Common status effect handling
 export function handleStunEffect(enemy: BaseEnemyState, now: number): void {
   if (enemy.state === "stunned" && now >= enemy.stunEndTime) {
-    enemy.state = "idle";
-  }
-}
-
-export function handleLevitateEffect(enemy: BaseEnemyState, now: number): void {
-  if (enemy.state === "levitating" && now >= enemy.levitateEndTime) {
     enemy.state = "idle";
   }
 }
@@ -100,12 +92,6 @@ export function drawStatusIndicators(
     ctx.fillStyle = "#ffff00";
     ctx.font = "20px Arial";
     ctx.fillText("💫", enemy.x + enemy.width / 2 - 10, enemy.y - 15);
-  }
-
-  if (enemy.state === "levitating") {
-    ctx.fillStyle = "#00ffff";
-    ctx.font = "20px Arial";
-    ctx.fillText("🪶", enemy.x + enemy.width / 2 - 10, enemy.y - 15);
   }
 }
 

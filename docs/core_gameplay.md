@@ -30,8 +30,11 @@ cooldownDuration = 2000; // 2 seconds between same spell
 // Enhanced pronunciation matching
 fuzzyMatches = {
   expelliarmus: ["expeliarmus", "expelli armus", "spell armus"],
-  levicorpus: ["levi corpus", "levie corpus", "levy corpus"],
-  // ... extensive pronunciation variants
+  protego: ["protego", "protago", "pro tego", "protect go"],
+  glacius: ["glacius", "glacier", "glass us", "ice spell"],
+  incendio: ["incendio", "incendeo", "in send io", "fire spell"],
+  bombarda: ["bombarda", "bombardo", "bomb arda", "explosion spell"],
+  depulso: ["depulso", "de pulso", "push spell", "force spell"],
 };
 ```
 
@@ -70,13 +73,6 @@ Your pronunciation confidence directly affects spell power, creating a natural s
 - **Duration**: 2-4 seconds (varies by enemy)
 - **Special**: Only spell that can stun Soul Sucker
 - **Strategy**: Interrupt casting, create damage windows
-
-#### 🪶 Levicorpus - The Levitator
-
-- **Effect**: Lifts enemies into the air
-- **Duration**: 2 seconds
-- **Special**: Interrupts all enemy casting
-- **Strategy**: Safe crowd control, spell interruption
 
 #### 🛡️ Protego - The Shield
 
@@ -192,7 +188,7 @@ The game features a carefully designed 3-enemy sequence that teaches players dif
 - **Duration**: 3 seconds
 - **Effect**: Cannot cast spells (except Protego)
 - **Source**: Spider's Entangling Web
-- **Counter**: Protego blocks, Levicorpus interrupts casting
+- **Counter**: Protego blocks
 
 #### 🐍 Poisoned (Spider Venom)
 
@@ -223,13 +219,6 @@ The game features a carefully designed 3-enemy sequence that teaches players dif
 - **Effect**: Cannot move or cast, vulnerable to damage
 - **Source**: Expelliarmus
 - **Special**: Only way to damage Soul Sucker
-
-#### 🪶 Levitating
-
-- **Duration**: 2 seconds
-- **Effect**: Interrupts casting, some spells do bonus damage
-- **Source**: Levicorpus
-- **Special**: Makes enemies vulnerable to knockback effects
 
 #### 🔥 On Fire (Spider only)
 

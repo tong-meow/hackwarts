@@ -9,6 +9,8 @@ export interface Player {
   color: string;
   maxHealth: number;
   currentHealth: number;
+  maxMagic: number;
+  currentMagic: number;
   originalX: number;
   originalY: number;
   originalColor: string;
@@ -51,17 +53,37 @@ export function protectPlayer(player: Player, duration: number) {
   console.log(`🛡️ Player protected for ${duration / 1000}s!`);
 }
 
+export function increaseMagic(player: Player, amount: number) {
+  player.currentMagic = Math.min(player.maxMagic, player.currentMagic + amount);
+  console.log(
+    `✨ Player magic increased by ${amount}! Current: ${player.currentMagic}/${player.maxMagic}`
+  );
+}
+
+export function consumeAllMagic(player: Player) {
+  player.currentMagic = 0;
+  console.log(
+    `💀 Player used ultimate spell! Magic consumed: 0/${player.maxMagic}`
+  );
+}
+
 export function damagePlayer(
   player: Player,
   damage: number,
   activeTimeouts: NodeJS.Timeout[],
-  onGameOver: () => void
+  onGameOver: () => void,
+  onShakeTrigger?: () => void
 ) {
   if (player.isProtected) {
     return;
   }
 
   player.currentHealth = Math.max(0, player.currentHealth - damage);
+
+  // Trigger shake effect when damage is dealt
+  if (onShakeTrigger) {
+    onShakeTrigger();
+  }
 
   if (player.currentHealth <= 0) {
     onGameOver();

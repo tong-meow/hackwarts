@@ -16,12 +16,16 @@ export class GameUI {
 
   private spells: SpellInfo[] = [
     { name: "expelliarmus", icon: "✨", description: "Disarm & knockback" },
-    { name: "levicorpus", icon: "🪶", description: "Levitate enemy" },
     { name: "protego", icon: "🛡️", description: "Shield protection" },
     { name: "glacius", icon: "❄️", description: "Ice damage & freeze" },
     { name: "incendio", icon: "🔥", description: "Fire damage & burn" },
     { name: "bombarda", icon: "💥", description: "Explosive damage" },
     { name: "depulso", icon: "🪨", description: "Force push" },
+    {
+      icon: "💀",
+      name: "avada kedavra",
+      description: "Ultimate death curse (160 MP)",
+    },
   ];
 
   constructor(canvas: HTMLCanvasElement, ctx: CanvasRenderingContext2D) {

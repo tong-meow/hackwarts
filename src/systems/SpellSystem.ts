@@ -1,5 +1,5 @@
 // Centralized Spell System for Hackwarts
-import { Player } from "../entities/Player.js";
+import { Player, consumeAllMagic } from "../entities/Player.js";
 import { Spider, castSpellOnSpider } from "../entities/enemies/Spider.js";
 import { Troll, castSpellOnTroll } from "../entities/enemies/Troll.js";
 import { Dementor, castSpellOnDementor } from "../entities/enemies/Dementor.js";
@@ -15,14 +15,24 @@ export class SpellSystem {
     spider: Spider | null,
     troll: Troll | null,
     dementor: Dementor | null,
-    activeTimeouts: NodeJS.Timeout[],
-    onSpiderWebCastComplete: (success: boolean) => void,
-    onHideVenomCasting: () => void
+    activeTimeouts: NodeJS.Timeout[]
   ): void {
     // Check if player is silenced
     if (player.isSilenced && Date.now() < (player.silenceEndTime || 0)) {
       console.log(`🔇 Player is silenced! Cannot cast ${spellName}.`);
       return;
+    }
+
+    // Check if avada kedavra requires full magic
+    if (spellName === "avada kedavra") {
+      if (player.currentMagic < player.maxMagic) {
+        console.log(
+          `💀 Avada Kedavra requires full magic! Current: ${player.currentMagic}/${player.maxMagic}`
+        );
+        return;
+      }
+      // Consume all magic when casting avada kedavra
+      consumeAllMagic(player);
     }
 
     // Check if player is immobilized (can only cast protego)
@@ -44,15 +54,7 @@ export class SpellSystem {
 
     // Cast spell on current enemy
     if (spider && spider.state !== "dead") {
-      castSpellOnSpider(
-        spellName,
-        confidence,
-        spider,
-        player,
-        activeTimeouts,
-        onSpiderWebCastComplete,
-        onHideVenomCasting
-      );
+      castSpellOnSpider(spellName, confidence, spider, player, activeTimeouts);
     } else if (troll && troll.state !== "dead") {
       castSpellOnTroll(spellName, confidence, troll, player, activeTimeouts);
     } else if (dementor && dementor.state !== "dead") {

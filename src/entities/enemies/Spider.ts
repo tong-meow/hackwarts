@@ -3,7 +3,6 @@ import {
   BaseEnemyState,
   createBaseEnemy,
   handleStunEffect,
-  handleLevitateEffect,
   applyDamageVisualFeedback,
   drawDeadEnemy,
 } from "../BaseEnemy.js";
@@ -14,6 +13,7 @@ import {
   immobilizePlayer,
   protectPlayer,
 } from "../Player.js";
+import { increaseMagic } from "../Player.js";
 
 // Spider-specific interface extending base enemy
 export interface Spider extends BaseEnemyState {
@@ -121,7 +121,6 @@ export function updateSpiderAI(
 
   // Handle status effects using base functions
   handleStunEffect(spider, now);
-  handleLevitateEffect(spider, now);
 
   // Handle fire damage
   if (spider.isOnFire) {
@@ -230,9 +229,7 @@ export function castSpellOnSpider(
   confidence: number,
   spider: Spider,
   player: Player,
-  activeTimeouts: NodeJS.Timeout[],
-  onWebCastComplete?: (success: boolean) => void,
-  onVenomCastInterrupted?: () => void
+  activeTimeouts: NodeJS.Timeout[]
 ) {
   if (spider.state === "dead") return;
 
@@ -241,112 +238,79 @@ export function castSpellOnSpider(
   switch (spellName) {
     case "expelliarmus":
       if (spider.state === "casting") {
-        // Check if web casting was interrupted
-        if (spider.currentSkill === "web") {
-          onWebCastComplete?.(false);
-        }
-        // Check if venom casting was interrupted
-        if (spider.currentSkill === "venom") {
-          onVenomCastInterrupted?.();
-        }
-
-        // Cancel spell, knockback, stun
+        // Cancel spell, knockback, stun for 3 seconds
         spider.state = "stunned";
-        spider.stunEndTime = Date.now() + 2000;
+        spider.stunEndTime = Date.now() + 3000;
         spider.currentSkill = "";
-        // Reset combo if interrupted
-        spider.lastWebHit = false;
-        spider.canCastVenom = false;
         console.log(`✨ Spider ${spider.id} spell interrupted and stunned!`);
-      } else if (spider.state === "levitating") {
-        // Knockback, stun, damage
+        increaseMagic(player, 10); // Increase magic for successful stun
+      } else if (spider.state === "idle") {
+        // Just knockback and stun
         spider.state = "stunned";
-        spider.stunEndTime = Date.now() + 2000;
-        damageSpider(spider, 5, activeTimeouts, () => {
-          console.log("🎉 VICTORY! Spider defeated!");
-        });
-        console.log(
-          `✨ Spider ${spider.id} knocked back from air and stunned!`
-        );
-      } else {
-        // Knockback, stun
-        spider.state = "stunned";
-        spider.stunEndTime = Date.now() + 2000;
-        console.log(`✨ Spider ${spider.id} knocked back and stunned!`);
-      }
-      break;
-
-    case "levicorpus":
-      if (spider.state === "levitating") {
-        console.log(`🪶 Spider ${spider.id} already levitating!`);
-      } else {
-        if (spider.state === "casting") {
-          // Check if web casting was interrupted
-          if (spider.currentSkill === "web") {
-            onWebCastComplete?.(false);
-          }
-          // Check if venom casting was interrupted
-          if (spider.currentSkill === "venom") {
-            onVenomCastInterrupted?.();
-          }
-
-          spider.currentSkill = "";
-          // Reset combo if interrupted
-          spider.lastWebHit = false;
-          spider.canCastVenom = false;
-          console.log(`🪶 Spider ${spider.id} spell interrupted!`);
-        }
-        spider.state = "levitating";
-        spider.levitateEndTime = Date.now() + 2000;
-        console.log(`🪶 Spider ${spider.id} levitated!`);
+        spider.stunEndTime = Date.now() + 3000;
+        console.log(`✨ Spider ${spider.id} stunned for 3s!`);
+        increaseMagic(player, 10); // Increase magic for successful stun
       }
       break;
 
     case "protego":
       protectPlayer(player, 5000);
+      // No magic increase for protective spells
       break;
 
     case "glacius":
-      if (spider.currentHealth > 0) {
-        damageSpider(spider, 10, activeTimeouts, () => {
-          console.log("🎉 VICTORY! Spider defeated!");
-        });
-        console.log(`❄️ Spider ${spider.id} frozen for 10 damage!`);
-      }
+      const glaciusDamage = Math.floor(20 * powerMultiplier);
+      damageSpider(spider, glaciusDamage, activeTimeouts, () => {
+        console.log("🎉 VICTORY! Spider defeated!");
+      });
+      console.log(`❄️ Spider ${spider.id} frozen for ${glaciusDamage} damage!`);
+      increaseMagic(player, 10); // Increase magic for successful damage
       break;
 
     case "incendio":
-      const incendioDamage = Math.floor(15 * powerMultiplier);
-      if (spider.currentHealth > 0) {
-        damageSpider(spider, incendioDamage, activeTimeouts, () => {
-          console.log("🎉 VICTORY! Spider defeated!");
-        });
-        setSpiderOnFire(spider, 5000);
-        console.log(
-          `🔥 Spider ${spider.id} burned for ${incendioDamage} damage and set on fire!`
-        );
-      }
+      const incendioDamage = Math.floor(20 * powerMultiplier);
+      damageSpider(spider, incendioDamage, activeTimeouts, () => {
+        console.log("🎉 VICTORY! Spider defeated!");
+      });
+      console.log(
+        `🔥 Spider ${spider.id} burned for ${incendioDamage} damage!`
+      );
+      increaseMagic(player, 10); // Increase magic for successful damage
       break;
 
     case "bombarda":
-      if (spider.currentHealth > 0) {
-        damageSpider(spider, 20, activeTimeouts, () => {
-          console.log("🎉 VICTORY! Spider defeated!");
-        });
-        console.log(`💥 Spider ${spider.id} exploded for 20 damage!`);
-      }
+      const bombardaDamage = Math.floor(15 * powerMultiplier);
+      damageSpider(spider, bombardaDamage, activeTimeouts, () => {
+        console.log("🎉 VICTORY! Spider defeated!");
+      });
+      console.log(
+        `💥 Spider ${spider.id} exploded for ${bombardaDamage} damage!`
+      );
+      increaseMagic(player, 10); // Increase magic for successful damage
       break;
 
     case "depulso":
       const depulsoDamage = Math.floor(15 * powerMultiplier);
-      if (spider.currentHealth > 0) {
-        damageSpider(spider, depulsoDamage, activeTimeouts, () => {
-          console.log("🎉 VICTORY! Spider defeated!");
-        });
-        console.log(
-          `🪨 Spider ${spider.id} hit by force for ${depulsoDamage} damage!`
-        );
-      }
+      damageSpider(spider, depulsoDamage, activeTimeouts, () => {
+        console.log("🎉 VICTORY! Spider defeated!");
+      });
+      console.log(
+        `🪨 Spider ${spider.id} hit by force for ${depulsoDamage} damage!`
+      );
+      increaseMagic(player, 10); // Increase magic for successful damage
+      break;
+
+    case "avada kedavra":
+      spider.state = "dead";
+      spider.currentHealth = 0;
+      console.log(
+        `💀 AVADA KEDAVRA! Spider ${spider.id} eliminated instantly!`
+      );
+      // No magic increase for avada kedavra (it consumes all magic)
+      // Trigger victory callback
+      setTimeout(() => {
+        console.log("🎉 VICTORY! Spider defeated by ultimate spell!");
+      }, 100);
       break;
   }
 }

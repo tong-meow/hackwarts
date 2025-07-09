@@ -6,13 +6,24 @@ import {
   applyDamageVisualFeedback,
   drawDeadEnemy,
 } from "../BaseEnemy.js";
-import { Player, damagePlayer, protectPlayer } from "../Player.js";
+import {
+  Player,
+  damagePlayer,
+  protectPlayer,
+  immobilizePlayer,
+} from "../Player.js";
+import { increaseMagic } from "../Player.js";
 
 // Dementor-specific interface extending base enemy
 export interface Dementor extends BaseEnemyState {
   type: "dementor";
   totalDamageReceived: number; // For defeat condition (150 HP total damage)
   shadowPhaseEndTime: number;
+
+  // Shadow phase animation
+  shadowPhaseStartTime: number;
+  shadowPhaseAnimationDuration: number;
+  shadowPhaseOffset: number;
 }
 
 // Dementor creation and management
@@ -23,6 +34,9 @@ export function createDementor(id: number, x: number, y: number): Dementor {
     type: "dementor",
     totalDamageReceived: 0,
     shadowPhaseEndTime: 0,
+    shadowPhaseStartTime: 0,
+    shadowPhaseAnimationDuration: 1000, // 1 second animation
+    shadowPhaseOffset: 0,
   };
 }
 
@@ -73,6 +87,8 @@ export function triggerShadowPhase(dementor: Dementor) {
 
   dementor.state = "shadowphase";
   dementor.shadowPhaseEndTime = Date.now() + 1000; // 1 second in shadow phase
+  dementor.shadowPhaseStartTime = Date.now(); // Start animation timing
+  dementor.shadowPhaseOffset = 0; // Reset offset
   console.log(`🌑 Dementor ${dementor.id} entered shadow phase!`);
 }
 
@@ -90,7 +106,8 @@ export function updateDementorAI(
   activeTimeouts: NodeJS.Timeout[],
   gameOver: boolean,
   gameWon: boolean,
-  onGameOver: () => void
+  onGameOver: () => void,
+  onShakeTrigger?: () => void
 ) {
   if (dementor.state === "dead" || gameOver || gameWon) return;
 
@@ -104,12 +121,30 @@ export function updateDementorAI(
   // Apply breathing animation to y position (up and down movement)
   dementor.y = dementor.originalY + breathingOffset;
 
-  // Handle status effects using base function
+  // Handle status effects using base functions
   handleStunEffect(dementor, now);
 
-  // Handle shadow phase
+  // Handle shadow phase duration
   if (dementor.state === "shadowphase" && now >= dementor.shadowPhaseEndTime) {
     dementor.state = "idle";
+    dementor.shadowPhaseOffset = 0; // Reset offset when exiting shadow phase
+  }
+
+  // Handle shadow phase animation
+  if (dementor.state === "shadowphase") {
+    const shadowElapsed = now - dementor.shadowPhaseStartTime;
+    const shadowProgress = Math.min(
+      shadowElapsed / dementor.shadowPhaseAnimationDuration,
+      1.0
+    );
+
+    if (shadowProgress < 0.5) {
+      // First half: move backward (increase offset)
+      dementor.shadowPhaseOffset = -50 * (shadowProgress * 2); // Move up to 50px back
+    } else {
+      // Second half: move forward to original position
+      dementor.shadowPhaseOffset = -50 * (2 - shadowProgress * 2); // Move back to 0
+    }
   }
 
   // Handle skill casting
@@ -122,7 +157,8 @@ export function updateDementorAI(
         activeTimeouts,
         onGameOver,
         gameOver,
-        gameWon
+        gameWon,
+        onShakeTrigger
       );
       dementor.state = "idle";
       dementor.nextSkillTime = now + Math.random() * 4000 + 3000; // 3-7 seconds
@@ -132,10 +168,12 @@ export function updateDementorAI(
 
   // Try to cast skills
   if (dementor.state === "idle" && now >= dementor.nextSkillTime) {
-    // Choose skill randomly
-    const skills = ["souldrain", "silenceshriek"];
-    const randomSkill = skills[Math.floor(Math.random() * skills.length)];
-    castDementorSkill(dementor, randomSkill);
+    // Choose skill - alternate between soul drain and silence shriek
+    if (Math.random() < 0.7) {
+      castDementorSkill(dementor, "souldrain");
+    } else {
+      castDementorSkill(dementor, "silenceshriek");
+    }
   }
 }
 
@@ -159,20 +197,25 @@ function executeDementorSkill(
   activeTimeouts: NodeJS.Timeout[],
   onGameOver: () => void,
   gameOver: boolean,
-  gameWon: boolean
+  gameWon: boolean,
+  onShakeTrigger?: () => void
 ) {
   if (dementor.currentSkill === "souldrain") {
     if (!player.isProtected) {
-      // Stun player for 4 seconds
-      player.isImmobilized = true;
-      player.immobilizedEndTime = Date.now() + 4000;
-      console.log(`💀 Soul Drain immobilizes player for 4 seconds!`);
+      // Immobilize player for 4 seconds
+      immobilizePlayer(player, 4000);
 
       // Deal 15 damage per second for 4 seconds
       for (let i = 0; i < 4; i++) {
         const timeout = setTimeout(() => {
           if (!gameOver && !gameWon) {
-            damagePlayer(player, 15, activeTimeouts, onGameOver);
+            damagePlayer(
+              player,
+              15,
+              activeTimeouts,
+              onGameOver,
+              onShakeTrigger
+            );
             healDementor(dementor, 15); // Heal self
           }
         }, (i + 1) * 1000);
@@ -218,20 +261,19 @@ export function castSpellOnDementor(
         console.log(
           `✨ Dementor ${dementor.id} spell interrupted and stunned for 4s!`
         );
+        increaseMagic(player, 10); // Increase magic for successful stun
       } else if (dementor.state === "idle") {
         // Knockback, stun
         dementor.state = "stunned";
         dementor.stunEndTime = Date.now() + 4000; // 4 seconds
         console.log(`✨ Dementor ${dementor.id} stunned for 4s!`);
+        increaseMagic(player, 10); // Increase magic for successful stun
       }
-      break;
-
-    case "levicorpus":
-      console.log(`🪶 Levicorpus has no effect on Dementor ${dementor.id}!`);
       break;
 
     case "protego":
       protectPlayer(player, 5000); // 5 seconds protection
+      // No magic increase for protective spells
       break;
 
     case "glacius":
@@ -240,11 +282,13 @@ export function castSpellOnDementor(
           console.log("🎉 VICTORY! Dementor defeated!");
         });
         console.log(`❄️ Dementor ${dementor.id} frozen for 30 damage!`);
+        increaseMagic(player, 10); // Increase magic for successful damage
       } else {
         triggerShadowPhase(dementor);
         console.log(
           `❄️ Dementor ${dementor.id} dodged Glacius with Shadow Phase!`
         );
+        // No magic increase for dodged spells
       }
       break;
 
@@ -257,11 +301,13 @@ export function castSpellOnDementor(
         console.log(
           `🔥 Dementor ${dementor.id} burned for ${incendioDamage} damage!`
         );
+        increaseMagic(player, 10); // Increase magic for successful damage
       } else {
         triggerShadowPhase(dementor);
         console.log(
           `🔥 Dementor ${dementor.id} dodged Incendio with Shadow Phase!`
         );
+        // No magic increase for dodged spells
       }
       break;
 
@@ -271,11 +317,13 @@ export function castSpellOnDementor(
           console.log("🎉 VICTORY! Dementor defeated!");
         });
         console.log(`💥 Dementor ${dementor.id} exploded for 15 damage!`);
+        increaseMagic(player, 10); // Increase magic for successful damage
       } else {
         triggerShadowPhase(dementor);
         console.log(
           `💥 Dementor ${dementor.id} dodged Bombarda with Shadow Phase!`
         );
+        // No magic increase for dodged spells
       }
       break;
 
@@ -288,12 +336,28 @@ export function castSpellOnDementor(
         console.log(
           `🪨 Dementor ${dementor.id} hit by force for ${depulsoDamage} damage!`
         );
+        increaseMagic(player, 10); // Increase magic for successful damage
       } else {
         triggerShadowPhase(dementor);
         console.log(
           `🪨 Dementor ${dementor.id} dodged Depulso with Shadow Phase!`
         );
+        // No magic increase for dodged spells
       }
+      break;
+
+    case "avada kedavra":
+      dementor.state = "dead";
+      dementor.currentHealth = 0;
+      dementor.totalDamageReceived = dementor.maxHealth; // Ensure defeat condition is met
+      console.log(
+        `💀 AVADA KEDAVRA! Dementor ${dementor.id} eliminated instantly!`
+      );
+      // No magic increase for avada kedavra (it consumes all magic)
+      // Trigger victory callback
+      setTimeout(() => {
+        console.log("🎉 VICTORY! Dementor defeated by ultimate spell!");
+      }, 100);
       break;
   }
 }
@@ -316,11 +380,18 @@ export function drawDementor(
 
   const dementorImage = (window as any).dementorImage;
 
-  // Apply shadow phase transparency
-  const alpha = dementor.state === "shadowphase" ? 0.3 : 1.0;
+  // Apply shadow phase transparency and color effects
+  let alpha = 1.0;
+  let shadowColor = false;
+
+  if (dementor.state === "shadowphase") {
+    alpha = 0.7; // More visible during dramatic effect
+    shadowColor = true; // Enable shadow coloring
+  }
+
   ctx.globalAlpha = alpha;
 
-  // Draw the dementor image with proper aspect ratio
+  // Draw the dementor image with proper aspect ratio and shadow phase offset
   if (dementorImage.complete) {
     // Calculate aspect ratio-preserving dimensions using original image proportions
     const originalAspectRatio = 431 / 461; // Original dementor image proportions (don't stretch)
@@ -339,40 +410,49 @@ export function drawDementor(
       drawHeight = targetWidth / originalAspectRatio;
     }
 
-    // Center the image within the target area
-    const offsetX = dementor.x + (targetWidth - drawWidth) / 2;
+    // Center the image within the target area and apply shadow phase offset
+    const offsetX =
+      dementor.x + (targetWidth - drawWidth) / 2 + dementor.shadowPhaseOffset;
     const offsetY = dementor.y + (targetHeight - drawHeight) / 2;
 
+    // Apply shadow color effect if in shadow phase
+    if (shadowColor) {
+      ctx.filter = "brightness(0.3) contrast(1.5) hue-rotate(240deg)"; // Dark blue shadow effect
+    }
+
     ctx.drawImage(dementorImage, offsetX, offsetY, drawWidth, drawHeight);
+
+    // Reset filter
+    ctx.filter = "none";
   } else {
-    // Fallback to original drawing if image not loaded (scaled 12x)
-    ctx.fillStyle = dementor.color;
-    ctx.fillRect(dementor.x, dementor.y, dementor.width, dementor.height);
+    // Fallback to original drawing if image not loaded (scaled 12x) with shadow phase offset
+    const drawX = dementor.x + dementor.shadowPhaseOffset;
+
+    // Apply shadow color to fallback drawing
+    if (shadowColor) {
+      ctx.fillStyle = "#1a0d2e"; // Dark shadow color
+    } else {
+      ctx.fillStyle = dementor.color;
+    }
+    ctx.fillRect(drawX, dementor.y, dementor.width, dementor.height);
 
     // Ghostly face (scaled 12x)
-    ctx.fillStyle = "#ffffff";
-    ctx.fillRect(dementor.x + 96, dementor.y + 180, 72, 72); // left eye (scaled 12x)
-    ctx.fillRect(dementor.x + 312, dementor.y + 180, 72, 72); // right eye (scaled 12x)
+    ctx.fillStyle = shadowColor ? "#4d4d4d" : "#ffffff";
+    ctx.fillRect(drawX + 96, dementor.y + 180, 72, 72); // left eye (scaled 12x)
+    ctx.fillRect(drawX + 312, dementor.y + 180, 72, 72); // right eye (scaled 12x)
 
     // Mouth (hollow) (scaled 12x)
     ctx.fillStyle = "#000000";
-    ctx.fillRect(dementor.x + 180, dementor.y + 360, 180, 96); // mouth (scaled 12x)
+    ctx.fillRect(drawX + 180, dementor.y + 360, 180, 96); // mouth (scaled 12x)
 
     // Ghostly arms (wispy) (scaled 12x)
-    ctx.fillStyle = dementor.color;
-    ctx.fillRect(dementor.x - 120, dementor.y + 300, 120, 240); // left arm (scaled 12x)
-    ctx.fillRect(dementor.x + dementor.width, dementor.y + 300, 120, 240); // right arm (scaled 12x)
+    ctx.fillStyle = shadowColor ? "#1a0d2e" : dementor.color;
+    ctx.fillRect(drawX - 120, dementor.y + 300, 120, 240); // left arm (scaled 12x)
+    ctx.fillRect(drawX + dementor.width, dementor.y + 300, 120, 240); // right arm (scaled 12x)
   }
 
   // Reset alpha
   ctx.globalAlpha = 1.0;
-
-  // Shadow phase indicator
-  if (dementor.state === "shadowphase") {
-    ctx.fillStyle = "#8A2BE2";
-    ctx.font = "96px Arial"; // Increased font size for the larger dementor
-    ctx.fillText("🌑", dementor.x + dementor.width + 35, dementor.y + 70);
-  }
 }
 
 // Re-export for backward compatibility

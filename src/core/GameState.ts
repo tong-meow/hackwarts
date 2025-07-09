@@ -32,6 +32,8 @@ export class GameState {
     color: string;
     maxHealth: number;
     currentHealth: number;
+    maxMagic: number;
+    currentMagic: number;
   };
 
   constructor(canvas: HTMLCanvasElement) {
@@ -43,6 +45,8 @@ export class GameState {
       color: "#4a90e2",
       maxHealth: 100,
       currentHealth: 100,
+      maxMagic: 160,
+      currentMagic: 0,
     };
 
     // Create player character with silence support
@@ -54,6 +58,8 @@ export class GameState {
       color: this.ORIGINAL_PLAYER.color,
       maxHealth: this.ORIGINAL_PLAYER.maxHealth,
       currentHealth: this.ORIGINAL_PLAYER.currentHealth,
+      maxMagic: this.ORIGINAL_PLAYER.maxMagic,
+      currentMagic: this.ORIGINAL_PLAYER.currentMagic,
       originalX: this.ORIGINAL_PLAYER.x,
       originalY: this.ORIGINAL_PLAYER.y,
       originalColor: this.ORIGINAL_PLAYER.color,
@@ -191,6 +197,7 @@ export class GameState {
     this.player.y = this.ORIGINAL_PLAYER.y;
     this.player.color = this.ORIGINAL_PLAYER.color;
     this.player.currentHealth = this.ORIGINAL_PLAYER.currentHealth;
+    this.player.currentMagic = this.ORIGINAL_PLAYER.currentMagic;
     this.player.isImmobilized = false;
     this.player.isPoisoned = false;
     this.player.isProtected = false;
